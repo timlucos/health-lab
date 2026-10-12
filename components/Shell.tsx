@@ -59,43 +59,92 @@ export async function signOut() {
 }
 
 function Login() {
-  const [email, setEmail] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [email, setEmail] = useState(() => {
+    try {
+      return localStorage.getItem("hl-email") ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  async function send(e: React.FormEvent) {
+  // Вход по коду из письма прямо в приложении: у значка на экране «Домой» своя память,
+  // поэтому ссылка, открытая в Safari, сюда сессию не передаёт. Сессия хранится до выхода.
+  async function send(e?: React.FormEvent) {
+    e?.preventDefault();
+    setBusy(true);
+    setMsg("");
+    const addr = email.trim().toLowerCase();
+    const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { emailRedirectTo: window.location.origin, shouldCreateUser: true } });
+    setBusy(false);
+    if (error) return setMsg(/rate|seconds/i.test(error.message) ? "Письмо уже отправлено. Новое можно запросить через минуту." : error.message);
+    try {
+      localStorage.setItem("hl-email", addr);
+    } catch {}
+    setStep("code");
+  }
+
+  async function verify(e: React.FormEvent) {
     e.preventDefault();
-    setState("sending");
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: window.location.origin } });
-    if (error) {
-      setState("error");
-      setMsg(error.message);
-    } else setState("sent");
+    setBusy(true);
+    setMsg("");
+    const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type: "email" });
+    setBusy(false);
+    if (error) setMsg(/expired|invalid/i.test(error.message) ? "Код не подошёл или устарел. Запросите новый." : error.message);
   }
 
   return (
     <div className="center">
-      <form className="login" onSubmit={send}>
+      <form className="login" onSubmit={step === "email" ? send : verify}>
         <img className="logo" src="/icon.svg" alt="" />
         <h1 className="title" style={{ fontSize: 28 }}>
           Health Lab
         </h1>
-        {state === "sent" ? (
-          <p className="note" style={{ fontSize: 15 }}>
-            Ссылка для входа отправлена на {email}. Откройте письмо на этом устройстве.
-          </p>
+        {step === "email" ? (
+          <>
+            <p className="note" style={{ fontSize: 15 }}>
+              Войдите по почте. Пароль не нужен: придёт письмо с кодом. Входить нужно один раз.
+            </p>
+            <input className="field" type="email" required autoComplete="email" inputMode="email" placeholder="почта" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Почта" />
+            <button className="btn" disabled={busy || !email}>
+              {busy ? "Отправляю…" : "Получить код"}
+            </button>
+          </>
         ) : (
           <>
             <p className="note" style={{ fontSize: 15 }}>
-              Войдите по почте владельца. Пароль не нужен, придёт ссылка.
+              Код отправлен на {email}. Введите цифры из письма. Ссылку в письме нажимать не нужно.
             </p>
-            <input className="field" type="email" required autoComplete="email" placeholder="почта" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Почта" />
-            <button className="btn" disabled={state === "sending" || !email}>
-              {state === "sending" ? "Отправляю…" : "Получить ссылку"}
+            <input
+              className="field code"
+              required
+              autoFocus
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={10}
+              placeholder="код из письма"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              aria-label="Код из письма"
+            />
+            <button className="btn" disabled={busy || code.length < 6}>
+              {busy ? "Проверяю…" : "Войти"}
             </button>
-            {state === "error" && <p className="note" style={{ color: "var(--bad)" }}>Не удалось отправить: {msg}</p>}
+            <div className="row-between">
+              <button type="button" className="link" onClick={() => (setStep("email"), setCode(""), setMsg(""))}>
+                Другая почта
+              </button>
+              <button type="button" className="link" disabled={busy} onClick={() => send()}>
+                Отправить код ещё раз
+              </button>
+            </div>
           </>
         )}
+        {msg && <p className="note" style={{ color: "var(--bad)" }}>{msg}</p>}
       </form>
     </div>
   );
