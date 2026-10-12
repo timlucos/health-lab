@@ -219,3 +219,30 @@ export const EQUIPMENT: Record<string, string> = {
 };
 
 export const LEVELS: Record<string, string> = { beginner: "новичок", intermediate: "средний", expert: "опытный" };
+
+// ---------- тренер: зал, план, подходы ----------
+
+/** Запись в БД: без кэша, после неё кэш чтений сбрасывается. */
+export async function mutate<T = unknown>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.rpc(fn, args);
+  cache.clear();
+  if (error) throw new ApiError(error.message, error.code === "42501" ? "forbidden" : /fetch|network/i.test(error.message) ? "network" : "other");
+  return data as T;
+}
+
+export type GymItem = { id: number; name: string; kind: string | null; photo_path: string | null; notes: string | null; active: boolean };
+export type Gym = { kinds: string[]; items: GymItem[] };
+export type PlanRow = { id: number; day: string; title: string; focus: string | null; readiness: number | null; acwr: number | null; status: "planned" | "in_progress" | "done" | "skipped"; rationale: string | null;
+  plan: { exercise_id: string; sets: number; reps: string; rest_s: number; minutes?: number; note?: string }[] };
+export type SetRow = { id: number; plan_id: number | null; day: string; exercise_id: string; set_no: number; reps: number; weight_kg: number | null; rpe: number | null };
+export type PlanDay = {
+  plan: PlanRow | null;
+  exercises: Record<string, { name: string; name_ru: string | null; images: string[]; equipment: string | null; primary_muscles: string[] }>;
+  sets: SetRow[];
+  last: Record<string, { day: string; weight_kg: number | null; reps: number | null }>;
+};
+export type WorkoutRow = { day: string; id: number; title: string; focus: string | null; status: string; readiness: number | null; sets: number; volume_kg: number };
+
+export const useGym = () => useRpc<Gym>("hl_gym", {});
+export const usePlan = (d: string | null) => useRpc<PlanDay>("hl_plan", d ? { d } : null);
+export const useWorkouts = (lim = 30) => useRpc<WorkoutRow[]>("hl_workouts", { lim });

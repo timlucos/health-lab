@@ -54,12 +54,6 @@ begin
   return new_id;
 end $$;
 
-create or replace function public.hl_gym_delete(item_id bigint) returns void
-language plpgsql security definer set search_path = '' as $$
-begin
-  if not health.is_owner() then raise exception 'forbidden' using errcode = '42501'; end if;
-  delete from health.gym_equipment where id = item_id;
-end $$;
 
 -- ---------- план и подходы ----------
 
@@ -99,12 +93,6 @@ begin
   update health.workout_plans set status = 'in_progress' where id = plan_id and status = 'planned';
 end $$;
 
-create or replace function public.hl_set_delete(d date, ex_id text, set_no int) returns void
-language plpgsql security definer set search_path = '' as $$
-begin
-  if not health.is_owner() then raise exception 'forbidden' using errcode = '42501'; end if;
-  delete from health.workout_sets s where s.day = d and s.exercise_id = ex_id and s.set_no = hl_set_delete.set_no;
-end $$;
 
 create or replace function public.hl_plan_status(plan_id bigint, st text) returns void
 language plpgsql security definer set search_path = '' as $$
@@ -147,8 +135,8 @@ do $$
 declare f text;
 begin
   foreach f in array array[
-    'public.hl_gym()', 'public.hl_gym_toggle(text, boolean)', 'public.hl_gym_add_photo(text)', 'public.hl_gym_delete(bigint)',
-    'public.hl_plan(date)', 'public.hl_set_log(bigint, date, text, int, int, numeric, numeric)', 'public.hl_set_delete(date, text, int)',
+    'public.hl_gym()', 'public.hl_gym_toggle(text, boolean)', 'public.hl_gym_add_photo(text)',
+    'public.hl_plan(date)', 'public.hl_set_log(bigint, date, text, int, int, numeric, numeric)',
     'public.hl_plan_status(bigint, text)', 'public.hl_workouts(int)',
     'public.hl_plan_save(date, text, text, numeric, numeric, jsonb, text)']
   loop
