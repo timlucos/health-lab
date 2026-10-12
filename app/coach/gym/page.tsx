@@ -69,9 +69,6 @@ export default function GymPage() {
         </div>
       )}
       {err && <p className="note" style={{ color: "var(--bad)" }}>Не сохранилось: {err}</p>}
-      <Card title="Фото зала" color="ring3">
-        <div className="note">Скоро: сфотографируете тренажёры, и ИИ сам отметит, что есть. Заработает после подключения ключа ИИ.</div>
-      </Card>
     </>
   );
 }

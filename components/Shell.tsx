@@ -16,7 +16,7 @@ const I = (d: string) => (
 const TABS = [
   { href: "/", label: "Сегодня", icon: I("M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8z") },
   { href: "/sleep", label: "Сон", icon: I("M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z") },
-  { href: "/load", label: "Нагрузка", icon: I("M3 12h4l3-8 4 16 3-8h4") },
+  { href: "/food", label: "Питание", icon: I("M7 3v8a2 2 0 0 0 4 0V3M9 11v10M17 3c-2 0-3 2.5-3 6s1 4 3 4v8") },
   { href: "/coach", label: "Тренер", icon: I("M3 9v6M6 7v10M18 7v10M21 9v6M6 12h12") },
   { href: "/data", label: "Данные", icon: I("M4 20V10M10 20V4M16 20v-7M22 20H2") },
 ];

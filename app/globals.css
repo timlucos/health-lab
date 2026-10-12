@@ -133,7 +133,7 @@ table.days tbody tr:hover td { background: color-mix(in srgb, var(--air) 6%, tra
 .ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .ex-card { gap: 6px; padding: 10px; align-content: start; }
 .ex-card .n { font-weight: 600; font-size: 14px; line-height: 1.3; }
-.motion { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: #fff; }
+.motion { position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: #fff; border: 0; padding: 0; cursor: zoom-in; }
 .motion img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transition: opacity .35s ease; }
 .motion.hero { aspect-ratio: 16 / 10; }
 .steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.5; }
@@ -180,8 +180,8 @@ a.btn { display: block; }
 .set-check.on { background: var(--ok); color: var(--page); }
 .set-check.wide { width: 100%; font-size: 15px; }
 .set-row label:focus-within { outline: 2px solid var(--air); }
-.wo-top { display: grid; grid-template-columns: 128px 1fr; gap: 12px; align-items: center; }
-.wo-top .motion { aspect-ratio: 4 / 3; }
+.wo-top { display: grid; gap: 10px; }
+.wo-top .motion { aspect-ratio: 16 / 11; }
 .wo-top .note { display: grid; gap: 2px; }
 
 /* итоги тренировки: шкалы 1–5 */
@@ -224,3 +224,33 @@ textarea.field { resize: vertical; min-height: 80px; line-height: 1.4; }
 .gloss summary::-webkit-details-marker { display: none; }
 .gloss p { margin: 6px 0 0; }
 .stack-label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+
+.motion.wide { aspect-ratio: 16 / 11; }
+.motion-zoom { position: absolute; right: 8px; bottom: 8px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(0,0,0,.55); color: #fff; font-size: 16px; }
+.viewer { position: fixed; inset: 0; z-index: 100; background: var(--page); overflow-y: auto; padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 24px); display: grid; gap: 12px; align-content: start; }
+.viewer-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.viewer-frames { display: grid; gap: 12px; }
+.viewer-frames figure { margin: 0; display: grid; gap: 4px; }
+.viewer-img { border: 0; padding: 0; background: #fff; border-radius: 14px; overflow: hidden; width: 100%; aspect-ratio: 4 / 3; cursor: zoom-in; }
+.viewer-img img { width: 100%; height: 100%; object-fit: contain; transition: transform .25s ease; }
+.wu-list { display: grid; gap: 4px; }
+.wu-item { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: center; text-align: left; border: 0; background: none; color: var(--ink); font: inherit; padding: 6px 0; cursor: pointer; }
+.wu-item .set-check { width: 32px; height: 32px; font-size: 15px; }
+.wu-item.on span:last-child { color: var(--muted); text-decoration: line-through; }
+.ramp { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--temp) 10%, transparent); font-variant-numeric: tabular-nums; }
+.hist { display: grid; gap: 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.hist-row { display: grid; grid-template-columns: 92px 1fr; gap: 8px; }
+
+/* питание */
+.food-add { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.food-add .chip { padding: 10px 4px; font-size: 13px; text-align: center; }
+.draft { display: grid; grid-template-columns: 1fr 92px; gap: 6px 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--hair); }
+.draft .note, .draft .link { grid-column: 1 / -1; }
+.draft .link { justify-self: start; padding: 0; font-size: 13px; color: var(--bad); }
+.draft-g { position: relative; }
+.draft-g small { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.food-preview { width: 100%; max-height: 260px; object-fit: cover; border-radius: 12px; }
+.scanner { position: relative; display: grid; gap: 6px; }
+.scanner video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; background: #000; }
+.scanner-frame { position: absolute; left: 12%; right: 12%; top: 32%; height: 22%; border: 2px solid var(--ring2); border-radius: 10px; pointer-events: none; }
+.week-bars.tall { height: 90px; }

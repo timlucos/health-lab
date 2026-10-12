@@ -5,7 +5,8 @@ import { useState } from "react";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
 import { fmtDay, fmtWeekday, lastWith, localToday, mutate, useGoal, useGym, usePlan, useSummary, useWorkouts, type PlanDay } from "@/lib/data";
 import { readinessColor } from "@/lib/insights";
-import { buildPlan, GYM_KINDS, restText, type Equip } from "@/lib/planner";
+import { buildPlan, FOCUS_LABELS, GYM_KINDS, restText, type Equip, type Focus } from "@/lib/planner";
+import { warmupFor } from "@/lib/warmup";
 
 // Цель из ответов владельца (11.10.2026), хранится в health.goals.
 const GOAL = { title: "Мышечная масса и выносливость", horizon: "до 12 апреля 2027" };
@@ -24,6 +25,8 @@ export default function Coach() {
   const hist = useWorkouts(10);
   const goal = useGoal();
   const [busy, setBusy] = useState(false);
+  const [focus, setFocus] = useState<Focus | "auto">("auto");
+  const [variant, setVariant] = useState(0);
   const [err, setErr] = useState("");
 
   const error = sum.error ?? plan.error ?? gym.error ?? hist.error;
@@ -34,12 +37,12 @@ export default function Coach() {
   const acwr = sum.data?.load[sum.data.load.length - 1]?.acwr ?? null;
   const kinds = (gym.data?.kinds ?? []) as Equip[];
 
-  async function compose() {
+  async function compose(f: Focus | "auto" = focus, v = variant) {
     if (!hist.data) return;
     setBusy(true);
     setErr("");
     try {
-      const p = buildPlan({ readiness: r, acwr, history: hist.data.filter((h) => h.day < today), equipment: kinds });
+      const p = buildPlan({ readiness: r, acwr, history: hist.data.filter((h) => h.day < today), equipment: kinds, focus: f, variant: v });
       await mutate("hl_plan_save", { d: today, title: p.title, focus: p.focus, readiness: r, acwr, plan: p.items, rationale: p.rationale });
       plan.reload();
       hist.reload();
@@ -57,14 +60,21 @@ export default function Coach() {
       {!ready ? (
         <Loading n={2} />
       ) : plan.data!.plan ? (
-        <PlanCard day={plan.data!} onRebuild={compose} busy={busy} />
+        <PlanCard
+          day={plan.data!}
+          busy={busy}
+          focus={focus}
+          onFocus={(f) => { setFocus(f); setVariant(0); compose(f, 0); }}
+          onRebuild={() => { const v = variant + 1; setVariant(v); compose(focus, v); }}
+        />
       ) : (
         <Card title="План на сегодня" color="ring1">
           <p className="coach">
             {r != null ? <>Готовность <b style={{ color: `var(--${readinessColor(r)})` }}>{Math.round(r)}</b>. </> : null}
             Тренер соберёт тренировку по очереди «жим, тяга, ноги, выносливость», вашей готовности и снарядам зала.
           </p>
-          <button className="btn" onClick={compose} disabled={busy}>{busy ? "Собираю…" : "Составить план"}</button>
+          <FocusChips value={focus} onChange={setFocus} disabled={busy} />
+          <button className="btn" onClick={() => compose()} disabled={busy}>{busy ? "Собираю…" : "Составить план"}</button>
           {err && <p className="note" style={{ color: "var(--bad)" }}>Не получилось сохранить план: {err}</p>}
         </Card>
       )}
@@ -94,16 +104,16 @@ export default function Coach() {
       </Card>
 
       {hist.data && hist.data.length > 0 && (
-        <Card title="Тренировки" color="load">
+        <Card title="История тренировок" color="load" href="/coach/history">
           <div className="list">
             {hist.data.slice(0, 6).map((w) => (
-              <div className="li" key={w.id}>
+              <Link className="li" key={w.id} href={`/coach/history?d=${w.day}`}>
                 <div>
                   <div className="n">{w.title}</div>
                   <div className="note">{fmtWeekday(w.day)}, {fmtDay(w.day)} · {w.sets} подх. · {Math.round(w.volume_kg).toLocaleString("ru-RU")} кг</div>
                 </div>
                 <span className="state" style={{ color: `var(--${STATUS[w.status]?.color ?? "muted"})` }}>{STATUS[w.status]?.label ?? w.status}</span>
-              </div>
+              </Link>
             ))}
           </div>
         </Card>
@@ -116,7 +126,20 @@ export default function Coach() {
   );
 }
 
-function PlanCard({ day, onRebuild, busy }: { day: PlanDay; onRebuild: () => void; busy: boolean }) {
+function FocusChips({ value, onChange, disabled }: { value: Focus | "auto"; onChange: (f: Focus | "auto") => void; disabled?: boolean }) {
+  return (
+    <div className="chips" style={{ flexWrap: "wrap" }} role="radiogroup" aria-label="Какая тренировка">
+      {FOCUS_LABELS.map((f) => (
+        <button key={f.key} role="radio" aria-checked={value === f.key} className={"chip" + (value === f.key ? " on" : "")} onClick={() => onChange(f.key)} disabled={disabled}>
+          {f.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PlanCard({ day, onRebuild, onFocus, focus, busy }: { day: PlanDay; onRebuild: () => void; onFocus: (f: Focus | "auto") => void; focus: Focus | "auto"; busy: boolean }) {
+  const wu = warmupFor(day.plan!.focus);
   const p = day.plan!;
   const total = p.plan.reduce((s, i) => s + (i.minutes ? 1 : i.sets), 0);
   const done = day.sets.length;
@@ -125,6 +148,7 @@ function PlanCard({ day, onRebuild, busy }: { day: PlanDay; onRebuild: () => voi
     <Card title="План на сегодня" color="ring1" right={<span className="state" style={{ color: `var(--${st.color})` }}>{st.label}</span>}>
       <div className="val m">{p.title}</div>
       {p.rationale && <p className="note">{p.rationale}</p>}
+      {wu && <p className="note"><b>Разминка 10 минут:</b> кардио, суставы, разминочные подходы. Подробно на экране тренировки.</p>}
       <div className="plan-list">
         {p.plan.map((it) => {
           const e = day.exercises[it.exercise_id];
@@ -153,7 +177,11 @@ function PlanCard({ day, onRebuild, busy }: { day: PlanDay; onRebuild: () => voi
         <Link href="/coach/review" className="btn ghost" style={{ textAlign: "center" }}>{p.status === "done" ? "Итоги и разбор тренера" : "Подвести итоги"}</Link>
       )}
       {done === 0 && (
-        <button className="btn ghost" onClick={onRebuild} disabled={busy}>{busy ? "Собираю…" : "Пересобрать план"}</button>
+        <>
+          <div className="note">Другая тренировка на сегодня:</div>
+          <FocusChips value={focus} onChange={onFocus} disabled={busy} />
+          <button className="btn ghost" onClick={onRebuild} disabled={busy}>{busy ? "Собираю…" : "Заменить упражнения"}</button>
+        </>
       )}
     </Card>
   );

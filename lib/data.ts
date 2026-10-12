@@ -246,13 +246,15 @@ export type WorkoutRow = { day: string; id: number; title: string; focus: string
 export const useGym = () => useRpc<Gym>("hl_gym", {});
 export const usePlan = (d: string | null) => useRpc<PlanDay>("hl_plan", d ? { d } : null);
 export const useWorkouts = (lim = 30) => useRpc<WorkoutRow[]>("hl_workouts", { lim });
+export type ExHistory = { day: string; sets: { n: number; reps: number; kg: number | null }[]; top_kg: number | null; e1rm: number | null };
+export const useExerciseHistory = (id: string | null, lim = 12) => useRpc<ExHistory[]>("hl_exercise_history", id ? { ex_id: id, lim } : null);
 
 // ---------- самочувствие, замеры, ИИ ----------
 
 export type Review = { day: string; plan_id: number | null; energy: number | null; fatigue: number | null; sleep_quality: number | null; soreness: number | null; mood: number | null;
   progress_feel: "better" | "same" | "worse" | null; pain: string | null; note: string | null };
 export type Checkin = { day: string; weight_kg: number | null; waist_cm: number | null; chest_cm: number | null; arm_cm: number | null; hip_cm: number | null; thigh_cm: number | null; body_fat_pct: number | null; note: string | null };
-export type AiReport = { id: number; kind: "workout" | "weekly" | "chat" | "daily" | "health"; day: string; model: string | null; question: string | null; answer: string; created_at: string };
+export type AiReport = { id: number; kind: "workout" | "weekly" | "chat" | "daily" | "health"; day: string; model: string | null; question: string | null; answer: string; created_at: string; cost_rub?: number | null };
 export type Progress = {
   checkins: Checkin[];
   reviews: Review[];
@@ -281,7 +283,7 @@ export class AiError extends Error {
 }
 
 /** Запрос к ИИ-тренеру (Edge Function coach-ai). Ключ ИИ хранится только на сервере. */
-export async function askCoach(body: { kind: AiReport["kind"]; day: string; question?: string; history?: { role: string; content: string }[] }): Promise<string> {
+async function invokeAi<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("coach-ai", { body });
   cache.clear();
   if (error) {
@@ -293,8 +295,36 @@ export async function askCoach(body: { kind: AiReport["kind"]; day: string; ques
     if (code === "no_key") throw new AiError("no_key", "Ключ ИИ ещё не подключён.");
     if (code === "forbidden") throw new AiError("forbidden", "Нет доступа.");
     if (code === "ai_failed") throw new AiError("ai_failed", payload?.detail ? `Сервис ИИ ответил ошибкой: ${payload.detail}` : "Сервис ИИ ответил ошибкой. Проверьте баланс и ключ.");
+    if (code === "ai_empty") throw new AiError("ai_failed", "ИИ не понял запрос. Попробуйте ещё раз или опишите словами.");
     if (/fetch|network|Failed to send/i.test(error.message)) throw new AiError("network", "Нет связи с сервером ИИ.");
     throw new AiError("other", payload?.detail ?? error.message);
   }
-  return (data as { answer: string }).answer;
+  return data as T;
 }
+
+/** Запрос к ИИ-тренеру (Edge Function coach-ai). Ключ ИИ хранится только на сервере. */
+export async function askCoach(body: { kind: AiReport["kind"]; day: string; question?: string; history?: { role: string; content: string }[] }): Promise<string> {
+  return (await invokeAi<{ answer: string }>(body)).answer;
+}
+
+// ---------- питание ----------
+
+export type FoodEntry = { id: number; day: string; meal: Meal; name: string; grams: number; kcal: number | null; protein: number | null; fat: number | null; carbs: number | null; product_id: number | null; source: string };
+export type Meal = "breakfast" | "lunch" | "dinner" | "snack";
+export type FoodDay = {
+  entries: FoodEntry[];
+  week: { day: string; kcal: number; protein: number; fat: number; carbs: number }[];
+  recent: { name: string; grams: number; kcal: number | null; protein: number | null; fat: number | null; carbs: number | null; product_id: number | null }[];
+};
+export type Product = { id: number; barcode: string | null; name: string; brand: string | null; kcal: number | null; protein: number | null; fat: number | null; carbs: number | null; portion_g: number | null; source: string };
+export type FoodGuess = { name: string; grams: number; kcal_100: number; protein_100: number; fat_100: number; carbs_100: number; confidence?: string };
+
+export const useFoodDay = (d: string | null) => useRpc<FoodDay>("hl_food_day", d ? { d } : null);
+export const useProducts = (q: string) => useRpc<Product[]>("hl_food_products", { q, lim: 30 });
+
+export const recognizeFood = (day: string, text: string, image?: string) =>
+  invokeAi<{ result: { items?: FoodGuess[]; note?: string }; cost_rub: number | null }>({ kind: "food", day, text, image });
+export const recognizeLabel = (day: string, image: string) =>
+  invokeAi<{ result: { name?: string; brand?: string; kcal?: number; protein?: number; fat?: number; carbs?: number; portion_g?: number | null }; cost_rub: number | null }>({ kind: "label", day, image });
+export const lookupBarcode = (code: string) => invokeAi<{ product: Product | null; from: "own" | "off" | "none" }>({ kind: "barcode", code });
+export const useAiSpend = () => useRpc<{ month_rub: number; month_n: number; avg_rub: number | null }>("hl_ai_spend", {});

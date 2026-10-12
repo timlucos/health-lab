@@ -2,7 +2,7 @@
 // Цель владельца: мышечная масса и выносливость, зал, средний опыт.
 // Ротация: жим → тяга → ноги → выносливость. Готовность меняет объём, снаряды зала — выбор упражнений.
 
-export type Focus = "push" | "pull" | "legs" | "cardio" | "recovery";
+export type Focus = "push" | "pull" | "legs" | "fullbody" | "cardio" | "recovery";
 
 export type PlanItem = {
   exercise_id: string;
@@ -90,6 +90,18 @@ const TEMPLATES: Record<Exclude<Focus, "recovery">, { title: string; slots: Slot
       { opts: ["Hanging_Leg_Raise", "Ab_Crunch_Machine", "Cable_Crunch", "Crunches"], ...ACC, rest_s: 60 },
     ],
   },
+  fullbody: {
+    title: "Всё тело: база и выносливость",
+    slots: [
+      { opts: ["Barbell_Squat", "Leg_Press", "Smith_Machine_Squat", "Goblet_Squat"], ...BASE, sets: 3 },
+      { opts: ["Barbell_Bench_Press_-_Medium_Grip", "Dumbbell_Bench_Press", "Leverage_Chest_Press", "Pushups"], ...BASE, sets: 3 },
+      { opts: ["Wide-Grip_Lat_Pulldown", "Pullups", "Leverage_High_Row", "Seated_Cable_Rows"], ...ACC, reps: "8–10" },
+      { opts: ["Romanian_Deadlift", "Barbell_Hip_Thrust", "Hyperextensions_Back_Extensions"], ...ACC, reps: "8–10" },
+      { opts: ["Dumbbell_Shoulder_Press", "Leverage_Shoulder_Press", "Side_Lateral_Raise"], ...ACC },
+      { opts: ["Seated_Cable_Rows", "One-Arm_Dumbbell_Row", "Leverage_Iso_Row"], ...ACC },
+      { opts: ["Plank", "Hanging_Leg_Raise", "Cable_Crunch"], ...ACC, reps: "40 с", rest_s: 45 },
+    ],
+  },
   cardio: {
     title: "Выносливость: интервалы и корпус",
     slots: [
@@ -104,6 +116,16 @@ const TEMPLATES: Record<Exclude<Focus, "recovery">, { title: string; slots: Slot
 
 const ROTATION: Exclude<Focus, "recovery">[] = ["push", "pull", "legs", "cardio"];
 
+export const FOCUS_LABELS: { key: Focus | "auto"; label: string }[] = [
+  { key: "auto", label: "По очереди" },
+  { key: "push", label: "Жим" },
+  { key: "pull", label: "Тяга" },
+  { key: "legs", label: "Ноги" },
+  { key: "fullbody", label: "Всё тело" },
+  { key: "cardio", label: "Выносливость" },
+  { key: "recovery", label: "Восстановление" },
+];
+
 export function nextFocus(history: { focus: string | null; status: string }[]): Exclude<Focus, "recovery"> {
   const last = history.find((h) => h.status !== "skipped" && ROTATION.includes(h.focus as never));
   if (!last) return "push";
@@ -116,31 +138,44 @@ function pick(opts: string[], have: Set<Equip>, used: Set<string>, shift = 0): s
   return opts.find((id) => !used.has(id) && have.has(EQ[id] ?? "other")) ?? opts.find((id) => !used.has(id) && EQ[id] === "body only") ?? null;
 }
 
-export function buildPlan(opts: { readiness: number | null; acwr: number | null; history: { focus: string | null; status: string }[]; equipment: Equip[] }): Plan {
+export function buildPlan(opts: {
+  readiness: number | null;
+  acwr: number | null;
+  history: { focus: string | null; status: string }[];
+  equipment: Equip[];
+  /** Выбор пользователя; «auto» — по очереди с учётом готовности. */
+  focus?: Focus | "auto";
+  /** Номер пересборки: 1, 2, 3… меняет упражнения на равноценные. */
+  variant?: number;
+}): Plan {
   const { readiness: r, acwr } = opts;
+  const chosen = opts.focus && opts.focus !== "auto" ? opts.focus : null;
+  const variant = opts.variant ?? 0;
   const have = new Set<Equip>([...(opts.equipment.length ? opts.equipment : DDX_GYM), "body only"]);
   const why: string[] = [];
 
-  if ((r != null && r < 50) || (acwr != null && acwr > 1.5)) {
-    const cardio = pick(["Bicycling_Stationary", "Elliptical_Trainer", "Rowing_Stationary", "Running_Treadmill"], have, new Set());
+  if (chosen === "recovery" || (!chosen && ((r != null && r < 50) || (acwr != null && acwr > 1.5)))) {
+    const cardio = pick(["Bicycling_Stationary", "Elliptical_Trainer", "Rowing_Stationary", "Running_Treadmill"], have, new Set(), variant);
     const items: PlanItem[] = [];
     if (cardio) items.push({ exercise_id: cardio, sets: 1, reps: "ровный темп", rest_s: 0, minutes: 30, note: "Зона 2: можно разговаривать полными фразами." });
     items.push({ exercise_id: "Plank", sets: 3, reps: "30 с", rest_s: 45 });
     if (r != null && r < 50) why.push(`Готовность ${Math.round(r)} из 100: организму нужно восстановиться.`);
     if (acwr != null && acwr > 1.5) why.push(`Нагрузка за неделю выросла слишком быстро: ${Math.round(acwr * 100)}% от обычной.`);
+    if (chosen === "recovery") why.push("Вы выбрали восстановление.");
     why.push("Сегодня лёгкое кардио и корпус, силовую сдвигаем на завтра.");
     return { title: "Восстановление", focus: "recovery", items, rationale: why.join(" ") };
   }
 
-  const focus = nextFocus(opts.history);
+  const focus = (chosen as Exclude<Focus, "recovery"> | null) ?? nextFocus(opts.history);
   const t = TEMPLATES[focus];
   const light = r != null && r < 60;
   const used = new Set<string>();
   const items: PlanItem[] = [];
   // Базовые упражнения не меняем, чтобы видеть прогресс в весах; вспомогательные чередуем по неделям.
-  const shift = opts.history.filter((h) => h.focus === focus && h.status !== "skipped").length;
+  // При пересборке меняем вспомогательные, а основное — через раз на равноценное.
+  const shift = opts.history.filter((h) => h.focus === focus && h.status !== "skipped").length + variant;
   for (const s of t.slots) {
-    const id = pick(s.opts, have, used, s.main ? 0 : shift);
+    const id = pick(s.opts, have, used, s.main ? Math.floor(variant / 2) % 2 : shift);
     if (!id) continue;
     used.add(id);
     items.push({ exercise_id: id, sets: Math.max(1, s.sets - (light && s.sets > 1 ? 1 : 0)), reps: s.reps, rest_s: s.rest_s, ...(s.minutes ? { minutes: s.minutes } : {}), ...(s.note ? { note: s.note } : {}) });
@@ -151,7 +186,8 @@ export function buildPlan(opts: { readiness: number | null; acwr: number | null;
     if (fin) items.push({ exercise_id: fin, sets: 5, reps: "30 с быстро / 30 с легко", rest_s: 0, minutes: 10, note: "Финишер на выносливость." });
   }
 
-  why.push(`По очереди сегодня «${t.title.split(":")[0].toLowerCase()}».`);
+  why.push(chosen ? `Вы выбрали «${t.title.split(":")[0].toLowerCase()}».` : `По очереди сегодня «${t.title.split(":")[0].toLowerCase()}».`);
+  if (chosen && r != null && r < 50) why.push("Готовность низкая, но вы выбрали силовую: работайте без отказа.");
   if (r == null) why.push("Готовности за сегодня ещё нет, план обычный.");
   else if (light) why.push(`Готовность ${Math.round(r)}: на один подход меньше в каждом упражнении.`);
   else why.push(`Готовность ${Math.round(r)}: полный объём${r >= 70 ? " и финишер на выносливость" : ""}.`);

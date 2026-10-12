@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ExerciseMotion } from "@/components/ExerciseMotion";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
-import { fmtDay, localToday, mutate, num, usePlan, useSummary, type PlanDay, type SetRow } from "@/lib/data";
+import { fmtDay, localToday, mutate, num, useExerciseHistory, usePlan, useSummary, type PlanDay, type SetRow } from "@/lib/data";
 import { restText, suggestWeight } from "@/lib/planner";
+import { rampSets, warmupFor } from "@/lib/warmup";
 
 export default function Workout() {
   const sum = useSummary(60);
@@ -41,8 +42,9 @@ export default function Workout() {
       <Header eyebrow={`тренировка · ${fmtDay(today)}`} title={p.title}>
         <Link href="/coach" className="muted small">‹ Тренер</Link>
       </Header>
+      <WarmupCard focus={p.focus} />
       {p.plan.map((it, i) => (
-        <ExerciseBlock key={it.exercise_id} n={i + 1} item={it} day={day.data!} planId={p.id} date={today} onChange={day.reload} />
+        <ExerciseBlock key={it.exercise_id} n={i + 1} item={it} day={day.data!} planId={p.id} date={today} onChange={day.reload} ramp={i === 0 && !it.minutes} />
       ))}
       {p.status === "done" ? (
         <Link href="/coach/review" className="btn" style={{ textAlign: "center" }}>Итоги тренировки</Link>
@@ -55,7 +57,42 @@ export default function Workout() {
 
 type Item = NonNullable<PlanDay["plan"]>["plan"][number];
 
-function ExerciseBlock({ n, item, day, planId, date, onChange }: { n: number; item: Item; day: PlanDay; planId: number; date: string; onChange: () => void }) {
+function WarmupCard({ focus }: { focus: string | null }) {
+  const w = warmupFor(focus);
+  const key = `wu-${new Date().toDateString()}`;
+  const [done, setDone] = useState<number[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(key) ?? "[]");
+    } catch {
+      return [];
+    }
+  });
+  if (!w) return null;
+  const items = [`Кардио: ${w.cardio}`, ...w.joints];
+  const toggle = (i: number) => {
+    const next = done.includes(i) ? done.filter((x) => x !== i) : [...done, i];
+    setDone(next);
+    try {
+      localStorage.setItem(key, JSON.stringify(next));
+    } catch {}
+  };
+  const all = done.length >= items.length;
+  return (
+    <Card title="0. Разминка · 10 минут" color={all ? "ok" : "temp"}>
+      <p className="note">Сначала разогреть тело и суставы, потом разминочные подходы в первом упражнении. Без этого риск травмы выше, а рабочие подходы слабее.</p>
+      <div className="wu-list">
+        {items.map((t, i) => (
+          <button key={i} className={"wu-item" + (done.includes(i) ? " on" : "")} onClick={() => toggle(i)} aria-pressed={done.includes(i)}>
+            <span className="set-check" aria-hidden>{done.includes(i) ? "✓" : ""}</span>
+            <span>{t}</span>
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ExerciseBlock({ n, item, day, planId, date, onChange, ramp }: { n: number; item: Item; day: PlanDay; planId: number; date: string; onChange: () => void; ramp?: boolean }) {
   const e = day.exercises[item.exercise_id];
   const last = day.last[item.exercise_id];
   const logged = day.sets.filter((s) => s.exercise_id === item.exercise_id);
@@ -68,7 +105,7 @@ function ExerciseBlock({ n, item, day, planId, date, onChange }: { n: number; it
   return (
     <Card title={`${n}. ${name}`} color={doneAll ? "ok" : "ring1"} right={<Link href={`/coach/exercise?id=${encodeURIComponent(item.exercise_id)}`} className="chev">техника</Link>}>
       <div className="wo-top">
-        {e?.images?.length ? <ExerciseMotion images={e.images} alt={name} /> : <span />}
+        {e?.images?.length ? <ExerciseMotion images={e.images} alt={name} size="wide" /> : null}
         <div className="note">
           <div>{cardio ? `${item.minutes} мин · ${item.reps}` : `${item.sets} × ${item.reps} · отдых ${restText(item.rest_s)}`}</div>
           {last?.weight_kg ? <div>Прошлый раз: {num(last.weight_kg, 1)} кг × {last.reps}</div> : null}
@@ -76,12 +113,43 @@ function ExerciseBlock({ n, item, day, planId, date, onChange }: { n: number; it
           {item.note && <div>{item.note}</div>}
         </div>
       </div>
+      {ramp && (
+        <div className="ramp">
+          <b>Разминочные подходы</b>
+          {rampSets(sw ?? last?.weight_kg ?? null).map((x, i) => (
+            <span key={i}>{x.kg != null ? `${num(x.kg, 1)} кг` : x.label} × {x.reps}</span>
+          ))}
+          <span className="note">Не записываются, отдых 1 минута.</span>
+        </div>
+      )}
+      <LastTimes exId={item.exercise_id} today={date} />
       <div className="sets">
         {Array.from({ length: count }, (_, k) => (
           <SetRowEditor key={`${k}-${logged.find((s) => s.set_no === k + 1)?.id ?? "new"}`} no={k + 1} cardio={cardio} reps={item.reps} weight={sw} row={logged.find((s) => s.set_no === k + 1)} planId={planId} date={date} exId={item.exercise_id} onChange={onChange} />
         ))}
       </div>
     </Card>
+  );
+}
+
+function LastTimes({ exId, today }: { exId: string; today: string }) {
+  const [open, setOpen] = useState(false);
+  const h = useExerciseHistory(open ? exId : null, 6);
+  const rows = (h.data ?? []).filter((x) => x.day < today);
+  return (
+    <div>
+      <button className="link" onClick={() => setOpen(!open)}>{open ? "Скрыть историю" : "История: что делал раньше"}</button>
+      {open && (h.loading ? <p className="note">Загружаю…</p> : rows.length ? (
+        <div className="hist">
+          {rows.map((x) => (
+            <div key={x.day} className="hist-row">
+              <span className="muted">{fmtDay(x.day)}</span>
+              <span>{x.sets.map((s) => (s.kg != null ? `${num(s.kg, 1)}×${s.reps}` : `${s.reps}`)).join(" · ")}</span>
+            </div>
+          ))}
+        </div>
+      ) : <p className="note">Раньше это упражнение не записывалось.</p>)}
+    </div>
   );
 }
 

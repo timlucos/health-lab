@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ExerciseMotion } from "@/components/ExerciseMotion";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
-import { EQUIPMENT, LEVELS, MUSCLES, useExercise } from "@/lib/data";
+import { EQUIPMENT, fmtDay, LEVELS, MUSCLES, num, useExercise, useExerciseHistory } from "@/lib/data";
 
 export default function ExercisePage() {
   return (
@@ -58,6 +58,7 @@ function ExerciseView() {
           {tags.map((t) => <span key={t as string} className="chip on" style={{ cursor: "default" }}>{t}</span>)}
         </div>
       </Card>
+      <ExHistoryCard id={e.id} />
       <Card title="Мышцы" color="heart">
         <div><b>Основные:</b> {e.primary_muscles.map((m) => MUSCLES[m] ?? m).join(", ") || "—"}</div>
         {e.secondary_muscles.length > 0 && <div className="muted">Помогают: {e.secondary_muscles.map((m) => MUSCLES[m] ?? m).join(", ")}</div>}
@@ -94,4 +95,23 @@ let tipsPromise: Promise<Record<string, Tip>> | null = null;
 function loadTips() {
   tipsPromise ??= fetch("/ex-tips.json").then((r) => (r.ok ? r.json() : {}));
   return tipsPromise;
+}
+
+function ExHistoryCard({ id }: { id: string }) {
+  const h = useExerciseHistory(id, 8);
+  if (!h.data?.length) return null;
+  const best = Math.max(...h.data.map((x) => x.e1rm ?? 0));
+  return (
+    <Card title="Мои подходы" color="ring1">
+      <div className="hist">
+        {h.data.map((x) => (
+          <div key={x.day} className="hist-row">
+            <span className="muted">{fmtDay(x.day)}</span>
+            <span>{x.sets.map((s) => (s.kg != null ? `${num(s.kg, 1)}×${s.reps}` : `${s.reps}`)).join(" · ")}</span>
+          </div>
+        ))}
+      </div>
+      {best > 0 && <p className="note">Лучший расчётный максимум на 1 раз: {num(best, 1)} кг.</p>}
+    </Card>
+  );
 }
