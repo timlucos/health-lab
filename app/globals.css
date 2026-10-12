@@ -263,3 +263,11 @@ textarea.field { resize: vertical; min-height: 80px; line-height: 1.4; }
 .check-row:last-child { border-bottom: 0; }
 .check-row input { width: 22px; height: 22px; flex: none; accent-color: var(--move); }
 .check-row.on span:first-of-type { color: var(--muted); text-decoration: line-through; }
+
+.push-rows { display: grid; gap: 10px; margin: 6px 0 12px; }
+.push-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.push-label { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.push-label input { width: 20px; height: 20px; accent-color: var(--air); }
+.push-label small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+.field.push-time { width: 104px; padding: 8px 10px; font-size: 16px; text-align: center; }
+.field.push-time:disabled { opacity: .45; }

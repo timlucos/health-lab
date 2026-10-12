@@ -5,6 +5,7 @@ import { Card } from "./ui";
 import { supabase } from "@/lib/supabase";
 import { mutate, useRpc } from "@/lib/data";
 
+type Prefs = { morning: string; evening_on: boolean; evening: string; weekly_on: boolean; weekly: string };
 type State = "loading" | "unsupported" | "install" | "denied" | "off" | "on";
 
 function b64ToBytes(b64: string) {
@@ -14,7 +15,8 @@ function b64ToBytes(b64: string) {
 
 /** Утренняя сводка: подписка на уведомления (на iPhone — только из приложения на экране «Домой»). */
 export function PushCard() {
-  const info = useRpc<{ public_key: string | null; devices: number }>("hl_push_info", {});
+  const info = useRpc<{ public_key: string | null; devices: number; prefs: Prefs }>("hl_push_info", {});
+  const prefs = info.data?.prefs;
   const [st, setSt] = useState<State>("loading");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -78,6 +80,15 @@ export function PushCard() {
     }
   }
 
+  async function save(p: Partial<Prefs>) {
+    try {
+      await mutate("hl_push_prefs_save", { p });
+      info.reload();
+    } catch (e) {
+      setMsg("Не сохранилось: " + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
   if (st === "loading") return null;
   return (
     <Card title="Утренняя сводка" color="ring2">
@@ -86,17 +97,41 @@ export function PushCard() {
       {st === "denied" && <p className="note">Уведомления запрещены. Включите их: Настройки iPhone → Уведомления → Здоровье Лаб.</p>}
       {st === "off" && (
         <>
-          <p className="note">Каждое утро в 7:40: готовность, сон и совет тренера на день — тренироваться или отдыхать, белок, вода, когда лечь. Совет делает DeepSeek, ≈ 1 ₽ в день.</p>
+          <p className="note">Каждое утро: готовность, сон и совет тренера на день — тренироваться или отдыхать, белок, вода, когда лечь. Совет делает DeepSeek, ≈ 1 ₽ в день. Вечером — напоминание, если не записаны еда или тренировка, по воскресеньям — итоги недели.</p>
           <button className="btn" onClick={enable} disabled={busy}>{busy ? "Включаю…" : "Включить уведомления"}</button>
         </>
       )}
       {st === "on" && (
         <>
-          <p className="note">Включено: сводка приходит каждое утро в 7:40 по Москве.</p>
+          <p className="note">Включено. Время московское, менять можно в любой момент.</p>
+          {prefs && (
+            <div className="push-rows">
+              <PushRow label="Утренняя сводка" hint="совет DeepSeek, ≈ 1 ₽" time={prefs.morning} onTime={(v) => save({ morning: v })} />
+              <PushRow label="Вечерняя проверка" hint="без ИИ, бесплатно" on={prefs.evening_on} onToggle={(v) => save({ evening_on: v })} time={prefs.evening} onTime={(v) => save({ evening: v })} />
+              <PushRow label="Итоги недели, вс" hint="разбор Claude, ≈ 10–20 ₽" on={prefs.weekly_on} onToggle={(v) => save({ weekly_on: v })} time={prefs.weekly} onTime={(v) => save({ weekly: v })} />
+            </div>
+          )}
           <button className="btn ghost" onClick={now} disabled={busy}>Прислать сводку сейчас</button>
         </>
       )}
       {msg && <p className="note">{msg}</p>}
     </Card>
+  );
+}
+
+function PushRow({ label, hint, on, onToggle, time, onTime }: { label: string; hint: string; on?: boolean; onToggle?: (v: boolean) => void; time: string; onTime: (v: string) => void }) {
+  const [t, setT] = useState(time);
+  useEffect(() => setT(time), [time]);
+  return (
+    <div className="push-row">
+      <label className="push-label">
+        {onToggle && <input type="checkbox" checked={!!on} onChange={(e) => onToggle(e.target.checked)} />}
+        <span>
+          {label}
+          <small>{hint}</small>
+        </span>
+      </label>
+      <input className="field push-time" type="time" step={300} value={t} disabled={onToggle && !on} onChange={(e) => setT(e.target.value)} onBlur={() => t && t !== time && onTime(t.slice(0, 5))} />
+    </div>
   );
 }

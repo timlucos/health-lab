@@ -1,5 +1,6 @@
 // Утренняя сводка: совет на день от ИИ и пуш на телефон (Web Push, ключи VAPID хранятся только в базе).
-// Расписание (pg_cron) зовёт с x-health-key; из приложения — с JWT владельца: подписка, проверка, «прислать сейчас».
+// Вечером — напоминание, что не записано; в воскресенье — недельный разбор.
+// Расписание (pg_cron, health.push_tick) зовёт с x-health-key; из приложения — с JWT владельца: подписка, проверка, «прислать сейчас».
 import webpush from "npm:web-push@3.6.7";
 
 const URL_ = Deno.env.get("SUPABASE_URL")!;
@@ -80,6 +81,42 @@ async function morning() {
   return { sent: await send(title, body, "/"), advice: !!plain, ai };
 }
 
+/** Вечернее напоминание без ИИ: что не записано за день и сколько не хватает белка. Нечего сказать — не шлём. */
+async function evening() {
+  const day = moscowDay();
+  const [food, plan, goal] = await Promise.all([
+    rpc(svc, "hl_food_day", { d: day }).catch(() => null),
+    rpc(svc, "hl_plan", { d: day }).catch(() => null),
+    rpc(svc, "hl_goal", {}).catch(() => null),
+  ]);
+  const lines: string[] = [];
+  const p = plan?.plan;
+  if (p && (p.status === "planned" || p.status === "in_progress") && !(plan.sets ?? []).some((s: { reps: number }) => s.reps > 0)) lines.push(`Тренировка «${p.title}» не отмечена. Если была — внесите подходы, если нет — перенесите.`);
+  const entries = food?.entries ?? [];
+  const w = goal?.details?.start_weight_kg;
+  if (!entries.length) lines.push("Еда за сегодня не записана: без неё тренер не видит белок и калории.");
+  else if (w) {
+    const prot = Math.round(entries.reduce((a: number, e: { protein: number | null }) => a + (e.protein ?? 0), 0));
+    const need = Math.round(w * 1.8);
+    if (prot < need * 0.85) lines.push(`Белок ${prot} из ~${need} г: добавьте творог, яйца или протеин до сна.`);
+  }
+  if (!lines.length) return { sent: 0, skipped: "nothing" };
+  return { sent: await send("Вечерняя проверка", lines.join(" "), entries.length ? "/coach" : "/food") };
+}
+
+/** Воскресный недельный разбор (Claude) и пуш со ссылкой на него. */
+async function weekly() {
+  const r = await fetch(`${URL_}/functions/v1/coach-ai`, {
+    method: "POST",
+    headers: { ...svcHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "weekly", day: moscowDay() }),
+  });
+  const j = await r.json().catch(() => null);
+  const plain = String(j?.answer ?? "").replace(/[#*_`>]/g, "").replace(/^\s*[-•]\s*/gm, "").replace(/\n+/g, " ").trim();
+  const body = r.ok && plain ? (plain.length > 200 ? plain.slice(0, 197) + "…" : plain) : "Разбор не получился, подробности в «Разборах».";
+  return { sent: await send("Итоги недели", body, "/coach/reports?k=weekly"), ok: r.ok };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return json({ error: "method" }, 405);
@@ -88,13 +125,13 @@ Deno.serve(async (req) => {
     const key = req.headers.get("x-health-key");
     if (key) {
       if (!(await rpc(svc, "hl_admin_ok", { k: key }))) return json({ error: "forbidden" }, 403);
-      return json(await morning());
+      return json(body.kind === "evening" ? await evening() : body.kind === "weekly" ? await weekly() : await morning());
     }
     const auth = req.headers.get("Authorization") ?? "";
     if (!auth.startsWith("Bearer ")) return json({ error: "unauthorized" }, 401);
     await rpc(auth, "hl_push_info", {}); // только владелец
     if (body.action === "vapid") return json({ public_key: (await vapid()).public });
-    if (body.action === "test") return json({ sent: await send("Здоровье Лаб", "Уведомления работают. Утренняя сводка придёт в 7:40.", "/") });
+    if (body.action === "test") return json({ sent: await send("Здоровье Лаб", "Уведомления работают. Утренняя сводка придёт в назначенное время.", "/") });
     if (body.action === "now") return json(await morning());
     return json({ error: "bad_action" }, 400);
   } catch (e) {
