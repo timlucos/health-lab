@@ -87,7 +87,7 @@ export function clearCache() {
 
 type State<T> = { data: T | null; error: ApiError | null; loading: boolean };
 
-function useRpc<T>(fn: string, args: Record<string, unknown> | null): State<T> & { reload: () => void } {
+export function useRpc<T>(fn: string, args: Record<string, unknown> | null): State<T> & { reload: () => void } {
   const [state, setState] = useState<State<T>>({ data: null, error: null, loading: true });
   const [nonce, setNonce] = useState(0);
   const key = args ? JSON.stringify(args) : null;
@@ -182,3 +182,40 @@ export const SPANS = [
   { key: "6m", label: "6М", days: 180 },
   { key: "y", label: "Г", days: 365 },
 ] as const;
+
+// ---------- тренер ----------
+
+export type Exercise = {
+  id: string;
+  name: string;
+  name_ru: string | null;
+  category: string | null;
+  level: string | null;
+  force: string | null;
+  mechanic: string | null;
+  equipment: string | null;
+  primary_muscles: string[];
+  secondary_muscles: string[];
+  instructions?: string[];
+  instructions_ru?: string[] | null;
+  images: string[];
+};
+
+export const useExercises = (q: string, muscle: string, equip: string) =>
+  useRpc<Exercise[]>("hl_exercises", { q, muscle, equip, lim: 120 });
+export const useExercise = (id: string | null) => useRpc<Exercise | null>("hl_exercise", id ? { ex_id: id } : null);
+
+export const MUSCLES: Record<string, string> = {
+  chest: "Грудь", lats: "Широчайшие", "middle back": "Середина спины", "lower back": "Поясница", traps: "Трапеции",
+  shoulders: "Плечи", biceps: "Бицепс", triceps: "Трицепс", forearms: "Предплечья", abdominals: "Пресс",
+  quadriceps: "Квадрицепс", hamstrings: "Бицепс бедра", glutes: "Ягодицы", calves: "Икры",
+  adductors: "Приводящие", abductors: "Отводящие", neck: "Шея",
+};
+
+export const EQUIPMENT: Record<string, string> = {
+  barbell: "Штанга", dumbbell: "Гантели", cable: "Блок", machine: "Тренажёр", "body only": "Свой вес",
+  kettlebells: "Гири", "e-z curl bar": "EZ-гриф", bands: "Резинки", "medicine ball": "Медбол",
+  "exercise ball": "Фитбол", "foam roll": "Ролик", other: "Другое",
+};
+
+export const LEVELS: Record<string, string> = { beginner: "новичок", intermediate: "средний", expert: "опытный" };

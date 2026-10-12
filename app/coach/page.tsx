@@ -55,6 +55,10 @@ export default function Coach() {
         </Card>
       )}
 
+      <Card title="Каталог упражнений" color="air" href="/coach/exercises">
+        <div className="note">876 упражнений с анимацией техники: поиск по мышцам и снарядам.</div>
+      </Card>
+
       <h2 className="h2">Скоро</h2>
       <Card>
         <div className="badge-soon">Этап 3, после подключения Claude API</div>
