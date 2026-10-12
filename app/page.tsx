@@ -1,6 +1,7 @@
 "use client";
 
-import { Ring, Spark } from "@/components/charts";
+import Link from "next/link";
+import { ActivityRings, Spark } from "@/components/charts";
 import { PasswordCard } from "@/components/Shell";
 import { Card, Delta, ErrorCard, Header, Loading } from "@/components/ui";
 import { fmtDay, fmtTime, fmtWeekday, hm, lastWith, localToday, num, useSummary, type Day } from "@/lib/data";
@@ -8,9 +9,11 @@ import { acwrState, dayInsight, norm, readinessColor } from "@/lib/insights";
 
 type Mini = { key: keyof Day; title: string; color: string; unit: string; digits?: number; good: "up" | "down" | "none"; kind?: "bar" | "line"; sign?: boolean };
 
+const ZONE: Record<string, string> = { ok: "Зелёная зона", warn: "Жёлтая зона", bad: "Красная зона", muted: "Мало данных" };
+const SLEEP_GOAL = 8 * 60; // минут сна в сутки
+const AZM_GOAL = 22; // ≈150 минут в зонах в неделю, норма ВОЗ
+
 const MINIS: Mini[] = [
-  { key: "hrv_ms", title: "HRV", color: "load", unit: "мс", good: "up" },
-  { key: "resting_hr", title: "Пульс покоя", color: "heart", unit: "уд/мин", good: "down" },
   { key: "steps", title: "Шаги", color: "move", unit: "", good: "up", kind: "bar" },
   { key: "azm", title: "Мин. в зонах", color: "move", unit: "мин", good: "up", kind: "bar" },
   { key: "skin_temp_delta_c", title: "Темп. кожи", color: "temp", unit: "°C", digits: 2, good: "none", sign: true },
@@ -45,6 +48,10 @@ export default function Today() {
   const s = hm(sleepDay?.sleep_min);
   const acwr = loadToday?.acwr ?? load?.acwr ?? null;
   const st = acwrState(acwr);
+  const hrvRow = lastWith(days, (x) => x.hrv_ms);
+  const rhrRow = lastWith(days, (x) => x.resting_hr);
+  const hrvNorm = hrvRow ? norm(days, "hrv_ms", days.indexOf(hrvRow)) : null;
+  const rhrNorm = rhrRow ? norm(days, "resting_hr", days.indexOf(rhrRow)) : null;
 
   return (
     <>
@@ -52,11 +59,49 @@ export default function Today() {
       <PasswordCard onlyIfMissing />
 
       <Card>
-        <div className="hero">
-          <Ring value={r} color={`var(--${readinessColor(r)})`} label="готовность" />
-          <div className="coach">
-            <b>{insight.head}</b> {insight.body}
+        <div className="rings-hero">
+          <ActivityRings
+            rings={[
+              { value: r != null ? r / 100 : null, color: "var(--ring1)", label: "Готовность" },
+              { value: sleepDay?.sleep_min != null ? sleepDay.sleep_min / SLEEP_GOAL : null, color: "var(--ring2)", label: "Сон" },
+              { value: d?.azm != null ? d.azm / AZM_GOAL : null, color: "var(--ring3)", label: "Минуты в зонах" },
+            ]}
+          />
+          <div className="ring-legend">
+            <div>
+              <div className="k" style={{ color: "var(--ring1)" }}>Готовность</div>
+              <div className="v" style={{ color: "var(--ring1)" }}>{r ?? "—"}<small>/100</small></div>
+            </div>
+            <div>
+              <div className="k" style={{ color: "var(--ring2)" }}>Сон</div>
+              <div className="v" style={{ color: "var(--ring2)" }}>{s ? `${s.h}:${String(s.m).padStart(2, "0")}` : "—"}<small>/8 ч</small></div>
+            </div>
+            <div>
+              <div className="k" style={{ color: "var(--ring3)" }}>В зонах</div>
+              <div className="v" style={{ color: "var(--ring3)" }}>{num(d?.azm)}<small>/{AZM_GOAL} мин</small></div>
+            </div>
           </div>
+        </div>
+        <span className="state" style={{ color: `var(--${readinessColor(r)})` }}>{ZONE[readinessColor(r)]}</span>
+        <div className="coach">
+          <b>{insight.head}</b> {insight.body}
+        </div>
+        <div className="stats">
+          <div>
+            <span className="k">ВСР</span>
+            <span className="v">{num(lastWith(days, (x) => x.hrv_ms)?.hrv_ms)}<small className="muted small"> мс</small></span>
+            <Delta value={lastWith(days, (x) => x.hrv_ms)?.hrv_ms} base={hrvNorm} good="up" />
+          </div>
+          <div>
+            <span className="k">Пульс покоя</span>
+            <span className="v">{num(lastWith(days, (x) => x.resting_hr)?.resting_hr)}<small className="muted small"> уд</small></span>
+            <Delta value={lastWith(days, (x) => x.resting_hr)?.resting_hr} base={rhrNorm} good="down" />
+          </div>
+          <Link href="/load">
+            <span className="k">Нагрузка</span>
+            <span className="v" style={{ color: `var(--${st.color})` }}>{num(acwr, 2)}</span>
+            <span className="delta" style={{ color: `var(--${st.color})` }}>{st.label.toLowerCase()}</span>
+          </Link>
         </div>
       </Card>
 
@@ -82,7 +127,7 @@ export default function Today() {
         </div>
       </Card>
 
-      <div className="grid2 grid4">
+      <div className="grid2 grid3">
         {MINIS.map((m) => {
           const row = lastWith(days, (x) => x[m.key]);
           const v = row?.[m.key] as number | null | undefined;
@@ -100,16 +145,6 @@ export default function Today() {
           );
         })}
       </div>
-
-      <Card title="Нагрузка" color="load" href="/load" right={<span className="chev">неделя к месяцу</span>}>
-        <div className="row-between">
-          <div className="val">{num(acwr, 2)}</div>
-          <span className="pill" style={{ color: `var(--${st.color})` }}>
-            {st.label}
-          </span>
-        </div>
-        <div className="note">Нагрузка по пульсу за 7 дней против средней за 28. Зона 0,8–1,3 безопасна для роста формы.</div>
-      </Card>
 
       <p className="note" style={{ textAlign: "center" }}>
         Данные Google Health{data.sync ? `, обновлено в ${fmtTime(data.sync, tz)} ${fmtDay(new Date(data.sync).toISOString().slice(0, 10))}` : ""}. День {d ? fmtDay(d.day) : "—"}.

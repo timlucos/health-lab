@@ -64,6 +64,41 @@ export function Ring({ value, color, size = 132, label = "из 100" }: { value: 
   );
 }
 
+// ---------- тройные кольца как в «Фитнесе» ----------
+
+export type RingItem = { value: number | null; color: string; label: string };
+
+/** Концентрические кольца: value в долях (1 = цель). Больше 1 рисуется вторым кругом поверх. */
+export function ActivityRings({ rings, size = 150 }: { rings: RingItem[]; size?: number }) {
+  const sw = size * 0.11;
+  const gap = 3;
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} role="img" aria-label={rings.map((r) => `${r.label}: ${r.value == null ? "нет данных" : Math.round(r.value * 100) + "%"}`).join(", ")}>
+      {rings.map((r, i) => {
+        const rad = size / 2 - sw / 2 - i * (sw + gap);
+        const len = 2 * Math.PI * rad;
+        const p = Math.max(0, r.value ?? 0);
+        const first = Math.min(p, 1);
+        const over = Math.min(Math.max(p - 1, 0), 1);
+        const mid = size / 2;
+        return (
+          <g key={i}>
+            <circle cx={mid} cy={mid} r={rad} fill="none" stroke={r.color} strokeOpacity={0.22} strokeWidth={sw} />
+            {first > 0 && (
+              <circle className="ring-arc" cx={mid} cy={mid} r={rad} fill="none" stroke={r.color} strokeWidth={sw} strokeLinecap="round"
+                strokeDasharray={`${Math.max(len * first - 0.01, 0.01)} ${len}`} transform={`rotate(-90 ${mid} ${mid})`} />
+            )}
+            {over > 0 && (
+              <circle cx={mid} cy={mid} r={rad} fill="none" stroke={r.color} strokeWidth={sw} strokeLinecap="round"
+                strokeDasharray={`${len * over} ${len}`} transform={`rotate(-90 ${mid} ${mid})`} style={{ filter: "drop-shadow(0 0 2px rgba(0,0,0,.45))" }} />
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 // ---------- маленький график в карточке ----------
 
 export function Spark({ values, color, kind = "line", height = 32 }: { values: (number | null)[]; color: string; kind?: "line" | "bar"; height?: number }) {
