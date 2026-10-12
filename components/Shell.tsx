@@ -66,86 +66,115 @@ function Login() {
       return "";
     }
   });
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"password" | "link" | "sent">("password");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // Вход по коду из письма прямо в приложении: у значка на экране «Домой» своя память,
-  // поэтому ссылка, открытая в Safari, сюда сессию не передаёт. Сессия хранится до выхода.
-  async function send(e?: React.FormEvent) {
-    e?.preventDefault();
-    setBusy(true);
-    setMsg("");
-    const addr = email.trim().toLowerCase();
-    const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { emailRedirectTo: window.location.origin, shouldCreateUser: true } });
-    setBusy(false);
-    if (error) return setMsg(/rate|seconds/i.test(error.message) ? "Письмо уже отправлено. Новое можно запросить через минуту." : error.message);
+  const remember = (addr: string) => {
     try {
       localStorage.setItem("hl-email", addr);
     } catch {}
-    setStep("code");
-  }
+  };
 
-  async function verify(e: React.FormEvent) {
+  // Вход по паролю работает прямо в приложении с экрана «Домой» (у него своя память, отдельная от Safari).
+  // Ссылка из письма нужна один раз: войти в Safari и задать пароль.
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setMsg("");
-    const { error } = await supabase.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type: "email" });
+    const addr = email.trim().toLowerCase();
+    remember(addr);
+    if (mode === "password") {
+      const { error } = await supabase.auth.signInWithPassword({ email: addr, password });
+      if (error) setMsg(/invalid/i.test(error.message) ? "Почта или пароль не подошли. Если пароля ещё нет, войдите по ссылке и задайте его." : error.message);
+    } else {
+      const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { emailRedirectTo: window.location.origin } });
+      if (error) setMsg(/rate|seconds/i.test(error.message) ? "Письмо уже отправлено. Новое можно запросить через минуту." : error.message);
+      else setMode("sent");
+    }
     setBusy(false);
-    if (error) setMsg(/expired|invalid/i.test(error.message) ? "Код не подошёл или устарел. Запросите новый." : error.message);
   }
 
   return (
     <div className="center">
-      <form className="login" onSubmit={step === "email" ? send : verify}>
+      <form className="login" onSubmit={submit}>
         <img className="logo" src="/icon.svg" alt="" />
         <h1 className="title" style={{ fontSize: 28 }}>
           Health Lab
         </h1>
-        {step === "email" ? (
+        {mode === "sent" ? (
           <>
             <p className="note" style={{ fontSize: 15 }}>
-              Войдите по почте. Пароль не нужен: придёт письмо с кодом. Входить нужно один раз.
+              Ссылка отправлена на {email}. Откройте её в Safari, задайте пароль в приложении, и дальше входите по паролю.
             </p>
-            <input className="field" type="email" required autoComplete="email" inputMode="email" placeholder="почта" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Почта" />
-            <button className="btn" disabled={busy || !email}>
-              {busy ? "Отправляю…" : "Получить код"}
+            <button type="button" className="link" onClick={() => setMode("password")}>
+              Войти по паролю
             </button>
           </>
         ) : (
           <>
-            <p className="note" style={{ fontSize: 15 }}>
-              Код отправлен на {email}. Введите цифры из письма. Ссылку в письме нажимать не нужно.
-            </p>
-            <input
-              className="field code"
-              required
-              autoFocus
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]*"
-              maxLength={10}
-              placeholder="код из письма"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              aria-label="Код из письма"
-            />
-            <button className="btn" disabled={busy || code.length < 6}>
-              {busy ? "Проверяю…" : "Войти"}
+            <input className="field" type="email" required autoComplete="username" inputMode="email" placeholder="почта" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Почта" />
+            {mode === "password" && (
+              <input className="field" type="password" required autoComplete="current-password" placeholder="пароль" value={password} onChange={(e) => setPassword(e.target.value)} aria-label="Пароль" />
+            )}
+            <button className="btn" disabled={busy || !email || (mode === "password" && !password)}>
+              {busy ? "Секунду…" : mode === "password" ? "Войти" : "Получить ссылку"}
             </button>
-            <div className="row-between">
-              <button type="button" className="link" onClick={() => (setStep("email"), setCode(""), setMsg(""))}>
-                Другая почта
-              </button>
-              <button type="button" className="link" disabled={busy} onClick={() => send()}>
-                Отправить код ещё раз
-              </button>
-            </div>
+            <button type="button" className="link" onClick={() => (setMode(mode === "password" ? "link" : "password"), setMsg(""))}>
+              {mode === "password" ? "Нет пароля? Войти по ссылке из письма" : "Войти по паролю"}
+            </button>
           </>
         )}
         {msg && <p className="note" style={{ color: "var(--bad)" }}>{msg}</p>}
       </form>
     </div>
+  );
+}
+
+/** Задать или сменить пароль. Показывается на «Сегодня», пока пароля нет, и всегда в «Данных». */
+export function PasswordCard({ onlyIfMissing = false }: { onlyIfMissing?: boolean }) {
+  const [has, setHas] = useState<boolean | null>(null);
+  const [pw, setPw] = useState("");
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setHas(!!data.user?.user_metadata?.has_password));
+  }, []);
+  if (has === null || (onlyIfMissing && has)) return null;
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setState("busy");
+    const { error } = await supabase.auth.updateUser({ password: pw, data: { has_password: true } });
+    if (error) {
+      setState("error");
+      setMsg(/should be|characters|weak/i.test(error.message) ? "Пароль слишком простой: нужно не меньше 6 символов." : error.message);
+    } else {
+      setState("done");
+      setHas(true);
+      setPw("");
+    }
+  }
+
+  return (
+    <form className="card" onSubmit={save} style={onlyIfMissing ? { border: "1px solid color-mix(in srgb, var(--air) 40%, transparent)" } : undefined}>
+      <span className="card-t" style={{ color: "var(--air)" }}>
+        <i />
+        {has ? "Сменить пароль" : "Задайте пароль"}
+      </span>
+      {state === "done" ? (
+        <p className="note">Пароль сохранён. Теперь откройте приложение с экрана «Домой» и войдите с почтой и этим паролем, один раз.</p>
+      ) : (
+        <>
+          {!has && <p className="note">С паролем приложение на экране «Домой» входит один раз и дальше помнит вас.</p>}
+          <input className="field" type="password" autoComplete="new-password" minLength={6} required placeholder="новый пароль" value={pw} onChange={(e) => setPw(e.target.value)} aria-label="Новый пароль" />
+          <button className="btn" disabled={state === "busy" || pw.length < 6}>
+            {state === "busy" ? "Сохраняю…" : "Сохранить пароль"}
+          </button>
+          {state === "error" && <p className="note" style={{ color: "var(--bad)" }}>{msg}</p>}
+        </>
+      )}
+    </form>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Trend } from "@/components/charts";
 import { Card, ErrorCard, Header, Loading, Seg, SpanSeg, spanDays, type SpanKey } from "@/components/ui";
 import { fmtDayShort, hmText, mean, num, useSummary, type Day } from "@/lib/data";
-import { signOut } from "@/components/Shell";
+import { PasswordCard, signOut } from "@/components/Shell";
 
 type Metric = { key: keyof Day; label: string; color: string; unit: string; digits?: number; kind: "bar" | "line" };
 
@@ -129,6 +129,7 @@ function Data() {
           </div>
         </Card>
       )}
+      <PasswordCard />
       <button className="btn ghost" onClick={() => signOut()} style={{ marginTop: 12 }}>
         Выйти
       </button>

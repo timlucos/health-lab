@@ -1,6 +1,7 @@
 "use client";
 
 import { Ring, Spark } from "@/components/charts";
+import { PasswordCard } from "@/components/Shell";
 import { Card, Delta, ErrorCard, Header, Loading } from "@/components/ui";
 import { fmtDay, fmtTime, fmtWeekday, hm, lastWith, localToday, num, useSummary, type Day } from "@/lib/data";
 import { acwrState, dayInsight, norm, readinessColor } from "@/lib/insights";
@@ -48,6 +49,7 @@ export default function Today() {
   return (
     <>
       <Header eyebrow={fmtWeekday(today) + ", " + fmtDay(today)} title="Сегодня" />
+      <PasswordCard onlyIfMissing />
 
       <Card>
         <div className="hero">
