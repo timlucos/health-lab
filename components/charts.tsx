@@ -216,7 +216,7 @@ export function Trend({ days, series = [], stack, height = 180, yMin, yMax, band
               <g key={t}>
                 <line x1={padL} x2={padL + plotW} y1={Y(t)} y2={Y(t)} stroke={c("hair")} strokeDasharray={t === lo ? undefined : "2 3"} />
                 <text x={padL + plotW + 6} y={Y(t) + 4} fontSize={11} fill={c("muted")}>
-                  {Math.abs(t) >= 10000 ? `${num(t / 1000)}к` : num(t, Math.abs(t) < 10 && t % 1 ? 1 : 0)}
+                  {Math.abs(t) >= 10000 ? `${num(t / 1000)}к` : num(t, t % 1 ? 1 : 0)}
                 </text>
               </g>
             ))}

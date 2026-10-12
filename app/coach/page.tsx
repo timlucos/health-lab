@@ -68,6 +68,14 @@ export default function Coach() {
         </Card>
       )}
 
+      <Card title="Прогресс" color="ring2" href="/coach/progress">
+        <div className="note">Вес и замеры раз в неделю, рост рабочих весов, объём по неделям и недельный разбор от ИИ-тренера.</div>
+      </Card>
+
+      <Card title="ИИ-тренер" color="load" href="/coach/ai">
+        <div className="note">Вопросы тренеру и как подключить ИИ.</div>
+      </Card>
+
       <Card title="Мой зал" color="ring3" href="/coach/gym">
         <div className="note">
           {kinds.length
@@ -137,6 +145,9 @@ function PlanCard({ day, onRebuild, busy }: { day: PlanDay; onRebuild: () => voi
       <Link href="/coach/workout" className="btn" style={{ textAlign: "center" }}>
         {p.status === "done" ? "Открыть тренировку" : done > 0 ? `Продолжить · ${done} из ${total}` : "Начать тренировку"}
       </Link>
+      {(p.status === "done" || done > 0) && (
+        <Link href="/coach/review" className="btn ghost" style={{ textAlign: "center" }}>{p.status === "done" ? "Итоги и разбор тренера" : "Подвести итоги"}</Link>
+      )}
       {done === 0 && (
         <button className="btn ghost" onClick={onRebuild} disabled={busy}>{busy ? "Собираю…" : "Пересобрать план"}</button>
       )}

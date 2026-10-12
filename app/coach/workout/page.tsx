@@ -30,7 +30,7 @@ export default function Workout() {
     setBusy(true);
     try {
       await mutate("hl_plan_status", { plan_id: p!.id, st: "done" });
-      router.push("/coach");
+      router.push("/coach/review");
     } finally {
       setBusy(false);
     }
@@ -44,9 +44,11 @@ export default function Workout() {
       {p.plan.map((it, i) => (
         <ExerciseBlock key={it.exercise_id} n={i + 1} item={it} day={day.data!} planId={p.id} date={today} onChange={day.reload} />
       ))}
-      <button className="btn" onClick={finish} disabled={busy || p.status === "done"}>
-        {p.status === "done" ? "Тренировка завершена" : busy ? "Сохраняю…" : "Завершить тренировку"}
-      </button>
+      {p.status === "done" ? (
+        <Link href="/coach/review" className="btn" style={{ textAlign: "center" }}>Итоги тренировки</Link>
+      ) : (
+        <button className="btn" onClick={finish} disabled={busy}>{busy ? "Сохраняю…" : "Завершить и подвести итоги"}</button>
+      )}
     </>
   );
 }

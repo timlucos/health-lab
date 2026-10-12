@@ -39,7 +39,7 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="shell">
       <nav className="tabs" aria-label="Разделы">
         <div className="brand">
-          Health <span>Lab</span>
+          Здоровье <span>Лаб</span>
         </div>
         {TABS.map((t) => (
           <Link key={t.href} href={t.href} className={"tab" + (active(t.href) ? " on" : "")} aria-current={active(t.href) ? "page" : undefined}>
@@ -101,7 +101,7 @@ function Login() {
       <form className="login" onSubmit={submit}>
         <img className="logo" src="/icon.svg" alt="" />
         <h1 className="title" style={{ fontSize: 28 }}>
-          Health Lab
+          Здоровье Лаб
         </h1>
         {mode === "sent" ? (
           <>

@@ -10,7 +10,7 @@ import { PasswordCard, signOut } from "@/components/Shell";
 type Metric = { key: keyof Day; label: string; color: string; unit: string; digits?: number; kind: "bar" | "line" };
 
 const METRICS: Metric[] = [
-  { key: "hrv_ms", label: "HRV", color: "load", unit: "мс", digits: 1, kind: "line" },
+  { key: "hrv_ms", label: "ВСР", color: "load", unit: "мс", digits: 1, kind: "line" },
   { key: "resting_hr", label: "Пульс покоя", color: "heart", unit: "уд/мин", kind: "line" },
   { key: "sleep_min", label: "Сон", color: "sleep", unit: "мин", kind: "bar" },
   { key: "steps", label: "Шаги", color: "move", unit: "", kind: "bar" },
@@ -22,7 +22,7 @@ const METRICS: Metric[] = [
   { key: "skin_temp_delta_c", label: "Темп. кожи", color: "temp", unit: "°C", digits: 2, kind: "line" },
   { key: "hr_avg", label: "Средний пульс", color: "heart", unit: "уд/мин", kind: "line" },
   { key: "sedentary_min", label: "Сидячие минуты", color: "muted", unit: "мин", kind: "bar" },
-  { key: "trimp", label: "TRIMP", color: "load", unit: "", kind: "bar" },
+  { key: "trimp", label: "Нагрузка", color: "load", unit: "", kind: "bar" },
 ];
 
 export default function DataPage() {
@@ -96,11 +96,11 @@ function Data() {
                   <th>День</th>
                   <th>Готовн.</th>
                   <th>Сон</th>
-                  <th>HRV</th>
+                  <th>ВСР</th>
                   <th>Покой</th>
                   <th>Шаги</th>
                   <th>Зоны</th>
-                  <th>TRIMP</th>
+                  <th>Нагр.</th>
                   <th>SpO₂</th>
                 </tr>
               </thead>

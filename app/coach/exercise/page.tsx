@@ -31,6 +31,16 @@ function ExerciseView() {
       live = false;
     };
   }, [id]);
+  // Разбор тренера (суставы, ошибки, рост мышц) есть для упражнений из плана.
+  const [tip, setTip] = useState<Tip | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    let live = true;
+    loadTips().then((t) => live && setTip(t[id] ?? null)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [id]);
   if (error) return <ErrorCard error={error} onRetry={reload} />;
   if (!e) return <Loading n={2} />;
   const ruSteps = e.instructions_ru?.length ? e.instructions_ru : ru?.length ? ru : null;
@@ -39,7 +49,7 @@ function ExerciseView() {
 
   return (
     <>
-      <Header eyebrow={e.name_ru ? e.name : "упражнение"} title={e.name_ru ?? e.name}>
+      <Header eyebrow="упражнение" title={e.name_ru ?? e.name}>
         <Link href="/coach/exercises" className="muted small">‹ Упражнения</Link>
       </Header>
       <Card>
@@ -52,7 +62,24 @@ function ExerciseView() {
         <div><b>Основные:</b> {e.primary_muscles.map((m) => MUSCLES[m] ?? m).join(", ") || "—"}</div>
         {e.secondary_muscles.length > 0 && <div className="muted">Помогают: {e.secondary_muscles.map((m) => MUSCLES[m] ?? m).join(", ")}</div>}
       </Card>
-      <Card title="Техника" color="air">
+      {tip && (
+        <>
+          <Card title="Суставы" color="temp">
+            <p className="coach" style={{ margin: 0 }}>{tip.joints}</p>
+          </Card>
+          <Card title="Главное в технике" color="ok">
+            <ul className="steps">{tip.cues.map((c, i) => <li key={i}>{c}</li>)}</ul>
+          </Card>
+          <Card title="Частые ошибки" color="bad">
+            <ul className="steps">{tip.mistakes.map((c, i) => <li key={i}>{c}</li>)}</ul>
+          </Card>
+          <Card title="Для роста мышц" color="load">
+            <p className="coach" style={{ margin: 0 }}>{tip.hypertrophy}</p>
+            <p className="note" style={{ margin: 0 }}>{tip.safety}</p>
+          </Card>
+        </>
+      )}
+      <Card title="Пошагово" color="air">
         {!ruSteps && steps.length > 0 && <p className="note">Перевод загружается…</p>}
         <ol className="steps">
           {steps.map((s, i) => <li key={i}>{s}</li>)}
@@ -60,4 +87,11 @@ function ExerciseView() {
       </Card>
     </>
   );
+}
+
+type Tip = { joints: string; cues: string[]; mistakes: string[]; hypertrophy: string; safety: string };
+let tipsPromise: Promise<Record<string, Tip>> | null = null;
+function loadTips() {
+  tipsPromise ??= fetch("/ex-tips.json").then((r) => (r.ok ? r.json() : {}));
+  return tipsPromise;
 }

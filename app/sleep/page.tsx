@@ -90,7 +90,7 @@ function Sleep() {
             <div className="legend">
               <span><i style={{ background: "var(--sleep)" }} />глубокий</span>
               <span><i style={{ background: "var(--sleep)", opacity: 0.5 }} />лёгкий</span>
-              <span><i style={{ background: "var(--air)" }} />REM</span>
+              <span><i style={{ background: "var(--air)" }} />быстрый (REM)</span>
               <span><i style={{ background: "var(--temp)" }} />бодрствование</span>
             </div>
           </Card>
@@ -99,7 +99,7 @@ function Sleep() {
             <HrLine hr={hr} tz={tz} from={t0} to={t1} restingHr={row?.resting_hr} />
             <div className="note">
               {row?.nonrem_hr != null && <>Средний пульс в фазе без REM {num(row.nonrem_hr)} уд/мин. </>}
-              {row?.hrv_ms != null && <>HRV за ночь {num(row.hrv_ms, 1)} мс, норма {num(n("hrv_ms"), 1)}.</>}
+              {row?.hrv_ms != null && <>ВСР за ночь {num(row.hrv_ms, 1)} мс, норма {num(n("hrv_ms"), 1)}.</>}
             </div>
           </Card>
 

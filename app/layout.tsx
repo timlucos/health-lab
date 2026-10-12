@@ -3,9 +3,9 @@ import "./globals.css";
 import { Shell } from "@/components/Shell";
 
 export const metadata: Metadata = {
-  title: "Health Lab",
+  title: "Здоровье Лаб",
   description: "Данные Fitbit Air из Google Health: сон, пульс, нагрузка и восстановление.",
-  appleWebApp: { capable: true, title: "Health Lab", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Здоровье Лаб", statusBarStyle: "default" },
   icons: { icon: "/icon.svg", apple: "/apple-icon.png" },
 };
 

@@ -51,7 +51,7 @@ export default function Exercises() {
           ))}
         </div>
       )}
-      <p className="note">Картинки и описания: открытая база free-exercise-db.</p>
+      <p className="note">Картинки: открытая база упражнений, описания переведены и дополнены под зал DDX.</p>
     </>
   );
 }

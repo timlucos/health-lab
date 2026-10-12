@@ -183,3 +183,25 @@ a.btn { display: block; }
 .wo-top { display: grid; grid-template-columns: 128px 1fr; gap: 12px; align-items: center; }
 .wo-top .motion { aspect-ratio: 4 / 3; }
 .wo-top .note { display: grid; gap: 2px; }
+
+/* итоги тренировки: шкалы 1–5 */
+.scale { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--hair); }
+.scale:first-of-type { border-top: 0; padding-top: 2px; }
+.scale-l { font-size: 15px; font-weight: 600; }
+.scale-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.scale-b { border: 0; border-radius: 10px; padding: 10px 0; font: inherit; font-size: 17px; font-weight: 600; background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); cursor: pointer; font-variant-numeric: tabular-nums; }
+.scale-b.on { background: var(--ring2); color: #000; }
+.scale-ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+textarea.field { resize: vertical; min-height: 80px; line-height: 1.4; }
+.form2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.form2 label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.form2 .field { font-size: 17px; padding: 10px 12px; }
+
+/* ответы ИИ */
+.md { display: grid; gap: 8px; line-height: 1.5; }
+.md-h { font-size: 15px; font-weight: 700; margin: 6px 0 0; }
+.md-p { margin: 0; }
+.chat { display: grid; gap: 10px; }
+.bubble { padding: 10px 12px; border-radius: 14px; max-width: 92%; line-height: 1.45; }
+.bubble.me { justify-self: end; background: color-mix(in srgb, var(--air) 16%, var(--card)); }
+.bubble.ai { justify-self: start; background: color-mix(in srgb, var(--ink) 6%, var(--card)); }

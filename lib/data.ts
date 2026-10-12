@@ -246,3 +246,47 @@ export type WorkoutRow = { day: string; id: number; title: string; focus: string
 export const useGym = () => useRpc<Gym>("hl_gym", {});
 export const usePlan = (d: string | null) => useRpc<PlanDay>("hl_plan", d ? { d } : null);
 export const useWorkouts = (lim = 30) => useRpc<WorkoutRow[]>("hl_workouts", { lim });
+
+// ---------- самочувствие, замеры, ИИ ----------
+
+export type Review = { day: string; plan_id: number | null; energy: number | null; fatigue: number | null; sleep_quality: number | null; soreness: number | null; mood: number | null;
+  progress_feel: "better" | "same" | "worse" | null; pain: string | null; note: string | null };
+export type Checkin = { day: string; weight_kg: number | null; waist_cm: number | null; chest_cm: number | null; arm_cm: number | null; hip_cm: number | null; thigh_cm: number | null; body_fat_pct: number | null; note: string | null };
+export type AiReport = { id: number; kind: "workout" | "weekly" | "chat"; day: string; model: string | null; question: string | null; answer: string; created_at: string };
+export type Progress = {
+  checkins: Checkin[];
+  reviews: Review[];
+  weeks: { week: string; workouts: number; sets: number; volume_kg: number }[];
+  lifts: Record<string, { day: string; e1rm: number }[]>;
+  names: Record<string, string>;
+  reports: AiReport[];
+};
+
+export const useProgress = (weeks = 26) => useRpc<Progress>("hl_progress", { weeks });
+export const useReview = (d: string | null) => useRpc<Review | null>("hl_review", d ? { d } : null);
+export const useAiReports = (k: string | null, lim = 30) => useRpc<AiReport[]>("hl_ai_reports", { k, lim });
+
+export class AiError extends Error {
+  constructor(public code: "no_key" | "forbidden" | "ai_failed" | "network" | "other", message: string) {
+    super(message);
+  }
+}
+
+/** Запрос к ИИ-тренеру (Edge Function coach-ai). Ключ ИИ хранится только на сервере. */
+export async function askCoach(body: { kind: "workout" | "weekly" | "chat"; day: string; question?: string; history?: { role: string; content: string }[] }): Promise<string> {
+  const { data, error } = await supabase.functions.invoke("coach-ai", { body });
+  cache.clear();
+  if (error) {
+    let payload: { error?: string; detail?: string } | null = null;
+    try {
+      payload = await (error as { context?: Response }).context?.json();
+    } catch {}
+    const code = payload?.error;
+    if (code === "no_key") throw new AiError("no_key", "Ключ ИИ ещё не подключён.");
+    if (code === "forbidden") throw new AiError("forbidden", "Нет доступа.");
+    if (code === "ai_failed") throw new AiError("ai_failed", payload?.detail ? `Сервис ИИ ответил ошибкой: ${payload.detail}` : "Сервис ИИ ответил ошибкой. Проверьте баланс и ключ.");
+    if (/fetch|network|Failed to send/i.test(error.message)) throw new AiError("network", "Нет связи с сервером ИИ.");
+    throw new AiError("other", payload?.detail ?? error.message);
+  }
+  return (data as { answer: string }).answer;
+}

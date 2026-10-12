@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Health Lab",
-    short_name: "Health Lab",
+    name: "Здоровье Лаб",
+    short_name: "Здоровье Лаб",
     description: "Сон, пульс, нагрузка и восстановление по данным Fitbit Air.",
     start_url: "/",
     display: "standalone",

@@ -45,7 +45,7 @@ function DayView() {
             <Card title="Шаги" color="move"><div className="val m">{num(s?.steps)}</div></Card>
             <Card title="Пульс покоя" color="heart"><div className="val m">{num(s?.resting_hr)}<small>уд/мин</small></div></Card>
             <Card title="Сон" color="sleep"><div className="val m" style={{ fontSize: 20 }}>{hmText(s?.sleep_min)}</div></Card>
-            <Card title="TRIMP" color="load"><div className="val m">{num(s?.trimp)}</div></Card>
+            <Card title="Нагрузка по пульсу" color="load"><div className="val m">{num(s?.trimp)}</div></Card>
           </div>
           <Card title="Пульс за день" color="heart">
             <HrLine hr={data.hr} tz={tz} restingHr={s?.resting_hr} height={180} />
