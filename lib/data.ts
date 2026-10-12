@@ -254,7 +254,7 @@ export const useExerciseHistory = (id: string | null, lim = 12) => useRpc<ExHist
 export type Review = { day: string; plan_id: number | null; energy: number | null; fatigue: number | null; sleep_quality: number | null; soreness: number | null; mood: number | null;
   progress_feel: "better" | "same" | "worse" | null; pain: string | null; note: string | null };
 export type Checkin = { day: string; weight_kg: number | null; waist_cm: number | null; chest_cm: number | null; arm_cm: number | null; hip_cm: number | null; thigh_cm: number | null; body_fat_pct: number | null; note: string | null };
-export type AiReport = { id: number; kind: "workout" | "weekly" | "chat" | "daily" | "health"; day: string; model: string | null; question: string | null; answer: string; created_at: string; cost_rub?: number | null };
+export type AiReport = { id: number; kind: "workout" | "weekly" | "chat" | "daily" | "health" | "food" | "mealplan"; day: string; model: string | null; question: string | null; answer: string; created_at: string; cost_rub?: number | null; tokens_in?: number | null; tokens_out?: number | null };
 export type Progress = {
   checkins: Checkin[];
   reviews: Review[];
@@ -303,7 +303,7 @@ async function invokeAi<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 /** Запрос к ИИ-тренеру (Edge Function coach-ai). Ключ ИИ хранится только на сервере. */
-export async function askCoach(body: { kind: AiReport["kind"]; day: string; question?: string; history?: { role: string; content: string }[] }): Promise<string> {
+export async function askCoach(body: { kind: "workout" | "weekly" | "chat" | "daily" | "health"; day: string; question?: string; history?: { role: string; content: string }[] }): Promise<string> {
   return (await invokeAi<{ answer: string }>(body)).answer;
 }
 
@@ -328,3 +328,25 @@ export const recognizeLabel = (day: string, image: string) =>
   invokeAi<{ result: { name?: string; brand?: string; kcal?: number; protein?: number; fat?: number; carbs?: number; portion_g?: number | null }; cost_rub: number | null }>({ kind: "label", day, image });
 export const lookupBarcode = (code: string) => invokeAi<{ product: Product | null; from: "own" | "off" | "none" }>({ kind: "barcode", code });
 export const useAiSpend = () => useRpc<{ month_rub: number; month_n: number; avg_rub: number | null }>("hl_ai_spend", {});
+
+// ---------- недельный рацион ----------
+
+export type PlanMealRef = [Meal, string, number];
+export type PlanRecipe = {
+  id: string; name: string; emoji?: string; meal?: Meal; portions: number; portion_g?: number;
+  kcal: number; protein: number; fat: number; carbs: number; time_min?: number; keeps?: string;
+  ingredients: [string, string][]; steps: string[];
+};
+export type MealPlanBody = {
+  title: string; summary?: string; per_day?: { kcal: number; protein: number; fat: number; carbs: number }; budget_rub?: number;
+  cook: { when: string; min?: number; makes?: string[]; steps: string[] }[];
+  recipes: PlanRecipe[];
+  days: { d: string; meals: PlanMealRef[] }[];
+  shop: { name: string; qty: string; rub?: number; aisle?: string }[];
+  tips?: string[];
+};
+export type MealPlanRow = { id: number; week_start: string; status: "pending" | "ready" | "error"; prefs: Record<string, string>; plan: MealPlanBody | null; error: string | null; model: string | null; cost_rub: number | null; created_at: string };
+export type MealPlanState = { plan: MealPlanRow | null; list: { id: number; week_start: string; status: string; created_at: string; cost_rub: number | null; title: string | null }[] };
+export const useMealPlan = (id: number | null = null) => useRpc<MealPlanState>("hl_meal_plan", { pid: id });
+export const startMealPlan = (day: string, prefs: Record<string, string>, targets: Record<string, number> | null) =>
+  invokeAi<{ id: number; status: string }>({ kind: "mealplan", day, prefs, targets });

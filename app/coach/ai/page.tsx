@@ -46,7 +46,10 @@ export default function AiPage() {
   return (
     <>
       <Header eyebrow="тренер" title="ИИ-тренер">
-        <Link href="/coach" className="muted small">‹ Тренер</Link>
+        <div className="row-between">
+          <Link href="/coach" className="muted small">‹ Тренер</Link>
+          <Link href="/coach/reports" className="link small">Все разборы ›</Link>
+        </div>
       </Header>
 
       <Card title="Чат с тренером" color="load">

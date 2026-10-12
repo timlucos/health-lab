@@ -87,6 +87,10 @@ export default function Coach() {
         <div className="note">Задайте любой вопрос: тренер видит тренировки, замеры, сон и пульс.</div>
       </Card>
 
+      <Card title="Разборы" color="ring2" href="/coach/reports">
+        <div className="note">Все прошлые разборы и ответы ИИ: когда, что сказал, какая модель и сколько стоило.</div>
+      </Card>
+
       <Card title="Мой зал" color="ring3" href="/coach/gym">
         <div className="note">
           {kinds.length

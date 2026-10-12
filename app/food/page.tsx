@@ -6,10 +6,11 @@ import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { ActivityRings } from "@/components/charts";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
 import {
-  AiError, fmtDay, fmtWeekdayShort, localToday, lookupBarcode, mutate, num, recognizeFood, recognizeLabel, useFoodDay, useGoal, useProgress, useSummary,
+  AiError, fmtDay, fmtWeekdayShort, localToday, lookupBarcode, mutate, num, recognizeFood, recognizeLabel, useFoodDay, useGoal, useMealPlan, useProgress, useSummary,
   type FoodGuess, type Meal, type Product,
 } from "@/lib/data";
 import { MEALS, mealNow, shrinkImage, targets } from "@/lib/nutrition";
+import { logRecipe, planDay, recipeOf, weekdayKey } from "@/lib/mealplan";
 
 type Draft = { name: string; grams: number; k: number; p: number; f: number; c: number; product_id?: number | null; source: string };
 const per = (d: Draft) => ({ kcal: (d.k * d.grams) / 100, protein: (d.p * d.grams) / 100, fat: (d.f * d.grams) / 100, carbs: (d.c * d.grams) / 100 });
@@ -83,6 +84,8 @@ export default function FoodPage() {
         )}
         {t && <p className="note">{t.why}</p>}
       </Card>
+
+      <PlanToday today={today} onLogged={day.reload} />
 
       <div className="food-add">
         {([["photo", "📷 Фото"], ["barcode", "▥ Штрихкод"], ["text", "✎ Текстом"], ["recent", "↺ Недавнее"]] as const).map(([k, l]) => (
@@ -285,6 +288,46 @@ function BarcodeAdd({ day, busy, setBusy, onProduct, onError }: AddProps & { onP
           <button className="btn" onClick={() => label.current?.click()} disabled={busy}>Сфотографировать этикетку</button>
         </>
       )}
+    </Card>
+  );
+}
+
+/** Сегодня по рациону: блюда из недельного плана, запись в дневник в одно касание. */
+function PlanToday({ today, onLogged }: { today: string; onLogged: () => void }) {
+  const mp = useMealPlan(null);
+  const [done, setDone] = useState<Record<number, boolean>>({});
+  const row = mp.data?.plan;
+  const plan = row?.status === "ready" ? row.plan : null;
+  const d = plan ? planDay(plan, weekdayKey(today)) : null;
+  if (!mp.data) return null;
+  if (!plan || !d) {
+    return (
+      <Card title="Рацион на неделю" color="food" href="/food/plan">
+        <div className="note">{row?.status === "pending" ? "Claude составляет рацион…" : "Меню на 7 дней с готовкой впрок: рецепты, список покупок и цены в «Пятёрочке»."}</div>
+      </Card>
+    );
+  }
+  return (
+    <Card title="Сегодня по рациону" color="food" right={<Link className="link small" href="/food/plan">Весь рацион ›</Link>}>
+      <div className="list">
+        {d.meals.map(([meal, id, n], i) => {
+          const r = recipeOf(plan, id);
+          if (!r) return null;
+          return (
+            <div key={i} className="li">
+              <div>
+                <div className="muted small">{MEALS.find((m) => m.key === meal)?.label ?? meal}</div>
+                <div className="n">{r.emoji ?? "🍽"} {r.name}</div>
+                <div className="note">{Math.round(r.kcal * n)} ккал · белок {Math.round(r.protein * n)} г</div>
+              </div>
+              <button className={"chip" + (done[i] ? " on" : "")} disabled={done[i]}
+                onClick={async () => { await logRecipe(today, meal, r, n); setDone((x) => ({ ...x, [i]: true })); onLogged(); }}>
+                {done[i] ? "Записано" : "Съел"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </Card>
   );
 }
