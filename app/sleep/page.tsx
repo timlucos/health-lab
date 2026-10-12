@@ -90,7 +90,7 @@ function Sleep() {
             <div className="legend">
               <span><i style={{ background: "var(--sleep)" }} />глубокий</span>
               <span><i style={{ background: "var(--sleep)", opacity: 0.5 }} />лёгкий</span>
-              <span><i style={{ background: "var(--air)" }} />быстрый (REM)</span>
+              <span><i style={{ background: "var(--air)" }} />быстрый</span>
               <span><i style={{ background: "var(--temp)" }} />бодрствование</span>
             </div>
           </Card>
@@ -98,14 +98,14 @@ function Sleep() {
           <Card title="Пульс во сне" color="heart">
             <HrLine hr={hr} tz={tz} from={t0} to={t1} restingHr={row?.resting_hr} />
             <div className="note">
-              {row?.nonrem_hr != null && <>Средний пульс в фазе без REM {num(row.nonrem_hr)} уд/мин. </>}
-              {row?.hrv_ms != null && <>ВСР за ночь {num(row.hrv_ms, 1)} мс, норма {num(n("hrv_ms"), 1)}.</>}
+              {row?.nonrem_hr != null && <>Средний пульс в медленном сне {num(row.nonrem_hr)} уд/мин. </>}
+              {row?.hrv_ms != null && <>Вариабельность пульса за ночь {num(row.hrv_ms, 1)} мс, норма {num(n("hrv_ms"), 1)}.</>}
             </div>
           </Card>
 
           <Card title="Стадии против нормы" color="sleep">
             <NormBar label="Глубокий" value={row?.sleep_deep_min ?? null} norm={n("sleep_deep_min")} max={360} color="var(--sleep)" />
-            <NormBar label="REM" value={row?.sleep_rem_min ?? null} norm={n("sleep_rem_min")} max={360} color="var(--air)" />
+            <NormBar label="Быстрый" value={row?.sleep_rem_min ?? null} norm={n("sleep_rem_min")} max={360} color="var(--air)" />
             <NormBar label="Лёгкий" value={row?.sleep_light_min ?? null} norm={n("sleep_light_min")} max={360} color="var(--sleep)" opacity={0.5} />
             <NormBar label="Бодрствование" value={row?.sleep_awake_min ?? null} norm={n("sleep_awake_min")} max={360} color="var(--temp)" />
             <div className="legend">
@@ -122,7 +122,7 @@ function Sleep() {
           days={tDays}
           stack={[
             { key: "deep", label: "Глубокий", color: "var(--sleep)", values: tail.map((d) => d.sleep_deep_min) },
-            { key: "rem", label: "REM", color: "var(--air)", values: tail.map((d) => d.sleep_rem_min) },
+            { key: "rem", label: "быстрый", color: "var(--air)", values: tail.map((d) => d.sleep_rem_min) },
             { key: "light", label: "Лёгкий", color: "var(--sleep)", opacity: 0.45, values: tail.map((d) => d.sleep_light_min) },
             { key: "awake", label: "Бодрств.", color: "var(--temp)", values: tail.map((d) => d.sleep_awake_min) },
           ]}
@@ -138,7 +138,7 @@ function Sleep() {
                 <div className="muted small">{fmtDayShort(tDays[i])}</div>
                 <div className="val">{hmText(tail[i].sleep_min)}</div>
                 <div className="muted small">
-                  глуб. {num(tail[i].sleep_deep_min)} · REM {num(tail[i].sleep_rem_min)} · лёгк. {num(tail[i].sleep_light_min)}
+                  глуб. {num(tail[i].sleep_deep_min)} · быстр. {num(tail[i].sleep_rem_min)} · лёгк. {num(tail[i].sleep_light_min)}
                 </div>
               </div>
             )

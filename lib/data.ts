@@ -252,7 +252,7 @@ export const useWorkouts = (lim = 30) => useRpc<WorkoutRow[]>("hl_workouts", { l
 export type Review = { day: string; plan_id: number | null; energy: number | null; fatigue: number | null; sleep_quality: number | null; soreness: number | null; mood: number | null;
   progress_feel: "better" | "same" | "worse" | null; pain: string | null; note: string | null };
 export type Checkin = { day: string; weight_kg: number | null; waist_cm: number | null; chest_cm: number | null; arm_cm: number | null; hip_cm: number | null; thigh_cm: number | null; body_fat_pct: number | null; note: string | null };
-export type AiReport = { id: number; kind: "workout" | "weekly" | "chat"; day: string; model: string | null; question: string | null; answer: string; created_at: string };
+export type AiReport = { id: number; kind: "workout" | "weekly" | "chat" | "daily" | "health"; day: string; model: string | null; question: string | null; answer: string; created_at: string };
 export type Progress = {
   checkins: Checkin[];
   reviews: Review[];
@@ -261,6 +261,14 @@ export type Progress = {
   names: Record<string, string>;
   reports: AiReport[];
 };
+
+export type Goal = { id: number; title: string; start_day: string; end_day: string; details: GoalDetails };
+export type GoalDetails = {
+  focus?: string[]; place?: string; experience?: string;
+  sex?: "m" | "f"; age?: number; height_cm?: number; start_weight_kg?: number; target_weight_kg?: number; target_waist_cm?: number;
+  workouts_per_week?: number; session_min?: number; priorities?: string; cardio_goal?: string; limits?: string; nutrition?: string; creatine_g?: number;
+};
+export const useGoal = () => useRpc<Goal | null>("hl_goal", {});
 
 export const useProgress = (weeks = 26) => useRpc<Progress>("hl_progress", { weeks });
 export const useReview = (d: string | null) => useRpc<Review | null>("hl_review", d ? { d } : null);
@@ -273,7 +281,7 @@ export class AiError extends Error {
 }
 
 /** Запрос к ИИ-тренеру (Edge Function coach-ai). Ключ ИИ хранится только на сервере. */
-export async function askCoach(body: { kind: "workout" | "weekly" | "chat"; day: string; question?: string; history?: { role: string; content: string }[] }): Promise<string> {
+export async function askCoach(body: { kind: AiReport["kind"]; day: string; question?: string; history?: { role: string; content: string }[] }): Promise<string> {
   const { data, error } = await supabase.functions.invoke("coach-ai", { body });
   cache.clear();
   if (error) {

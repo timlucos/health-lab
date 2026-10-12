@@ -35,7 +35,9 @@ export default function ProgressPage() {
       <VolumeCard weeks={p.weeks} />
       <LiftsCard lifts={p.lifts} names={p.names ?? {}} />
       <FeelCard reviews={p.reviews} />
-      <AiCard kind="weekly" day={today} title="Недельный разбор тренера" cta="Получить недельный разбор" />
+      <AiCard kind="weekly" day={today} title="Недельный разбор тренировок" cta="Разобрать неделю тренировок" />
+      <AiCard kind="health" day={today} title="Глубокий разбор здоровья" cta="Разобрать здоровье за месяц" color="ring3"
+        hint="Сон, вариабельность пульса, пульс покоя, кислород, температура, нагрузка и вес за последние недели: что меняется, что тревожит, что улучшить." />
     </>
   );
 }

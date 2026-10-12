@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
-import { fmtDay, fmtWeekday, lastWith, localToday, mutate, useGym, usePlan, useSummary, useWorkouts, type PlanDay } from "@/lib/data";
+import { fmtDay, fmtWeekday, lastWith, localToday, mutate, useGoal, useGym, usePlan, useSummary, useWorkouts, type PlanDay } from "@/lib/data";
 import { readinessColor } from "@/lib/insights";
 import { buildPlan, GYM_KINDS, restText, type Equip } from "@/lib/planner";
 
 // Цель из ответов владельца (11.10.2026), хранится в health.goals.
-const GOAL = { title: "Мышечная масса и выносливость", horizon: "до 12 апреля 2027", where: "зал, средний опыт" };
+const GOAL = { title: "Мышечная масса и выносливость", horizon: "до 12 апреля 2027" };
 
 const STATUS: Record<string, { label: string; color: string }> = {
   planned: { label: "Запланирована", color: "air" },
@@ -22,6 +22,7 @@ export default function Coach() {
   const plan = usePlan(sum.data ? today : null);
   const gym = useGym();
   const hist = useWorkouts(10);
+  const goal = useGoal();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -73,7 +74,7 @@ export default function Coach() {
       </Card>
 
       <Card title="ИИ-тренер" color="load" href="/coach/ai">
-        <div className="note">Вопросы тренеру и как подключить ИИ.</div>
+        <div className="note">Задайте любой вопрос: тренер видит тренировки, замеры, сон и пульс.</div>
       </Card>
 
       <Card title="Мой зал" color="ring3" href="/coach/gym">
@@ -84,9 +85,12 @@ export default function Coach() {
         </div>
       </Card>
 
-      <Card title="Цель" color="ring2">
+      <Card title="Цель" color="ring2" href="/coach/goal">
         <div className="val m">{GOAL.title}</div>
-        <div className="note">{GOAL.horizon} · {GOAL.where}</div>
+        <div className="note">
+          {goal.data?.details.target_weight_kg ? `Вес ${goal.data.details.start_weight_kg ?? "?"} → ${goal.data.details.target_weight_kg} кг · ` : "Укажите вес и цели, чтобы ИИ считал питание и темп · "}
+          {GOAL.horizon}
+        </div>
       </Card>
 
       {hist.data && hist.data.length > 0 && (

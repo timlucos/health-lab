@@ -127,7 +127,7 @@ export function buildPlan(opts: { readiness: number | null; acwr: number | null;
     if (cardio) items.push({ exercise_id: cardio, sets: 1, reps: "ровный темп", rest_s: 0, minutes: 30, note: "Зона 2: можно разговаривать полными фразами." });
     items.push({ exercise_id: "Plank", sets: 3, reps: "30 с", rest_s: 45 });
     if (r != null && r < 50) why.push(`Готовность ${Math.round(r)} из 100: организму нужно восстановиться.`);
-    if (acwr != null && acwr > 1.5) why.push(`Нагрузка за неделю выросла слишком быстро (ACWR ${acwr.toFixed(2)}).`);
+    if (acwr != null && acwr > 1.5) why.push(`Нагрузка за неделю выросла слишком быстро: ${Math.round(acwr * 100)}% от обычной.`);
     why.push("Сегодня лёгкое кардио и корпус, силовую сдвигаем на завтра.");
     return { title: "Восстановление", focus: "recovery", items, rationale: why.join(" ") };
   }

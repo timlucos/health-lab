@@ -17,7 +17,7 @@ const METRICS: Metric[] = [
   { key: "azm", label: "Минуты в зонах", color: "move", unit: "мин", kind: "bar" },
   { key: "active_kcal", label: "Активные ккал", color: "temp", unit: "ккал", kind: "bar" },
   { key: "distance_km", label: "Дистанция", color: "move", unit: "км", digits: 1, kind: "bar" },
-  { key: "spo2_avg", label: "SpO₂", color: "air", unit: "%", digits: 1, kind: "line" },
+  { key: "spo2_avg", label: "Кислород", color: "air", unit: "%", digits: 1, kind: "line" },
   { key: "resp_rate", label: "Дыхание", color: "air", unit: "вд/мин", digits: 1, kind: "line" },
   { key: "skin_temp_delta_c", label: "Темп. кожи", color: "temp", unit: "°C", digits: 2, kind: "line" },
   { key: "hr_avg", label: "Средний пульс", color: "heart", unit: "уд/мин", kind: "line" },
@@ -101,7 +101,7 @@ function Data() {
                   <th>Шаги</th>
                   <th>Зоны</th>
                   <th>Нагр.</th>
-                  <th>SpO₂</th>
+                  <th>Кислород</th>
                 </tr>
               </thead>
               <tbody>

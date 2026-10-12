@@ -291,7 +291,7 @@ export function Trend({ days, series = [], stack, height = 180, yMin, yMax, band
 
 const STAGE_ROW: Record<string, number> = { awake: 0, rem: 1, light: 2, asleep: 2, deep: 3 };
 const STAGE_COLOR: Record<string, [string, number]> = { awake: ["temp", 1], rem: ["air", 1], light: ["sleep", 0.5], asleep: ["sleep", 0.5], deep: ["sleep", 1] };
-export const STAGE_NAMES = ["Бодрств.", "REM", "Лёгкий", "Глубокий"];
+export const STAGE_NAMES = ["Бодрств.", "Быстрый", "Лёгкий", "Глубокий"];
 
 export function Hypnogram({ stages, tz }: { stages: Stage[]; tz: string }) {
   const [ref, w] = useWidth<HTMLDivElement>();

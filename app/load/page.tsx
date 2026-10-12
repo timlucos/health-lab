@@ -35,7 +35,7 @@ export default function LoadPage() {
       <Header eyebrow="тренированность" title="Нагрузка" />
       <SpanSeg value={span} onChange={setSpan} />
 
-      <Card title="Нагрузка по пульсу (TRIMP)" color="load" right={<span className="pill" style={{ color: `var(--${st.color})` }}>{st.label}</span>}>
+      <Card title="Пульсовая нагрузка" color="load" right={<span className="pill" style={{ color: `var(--${st.color})` }}>{st.label}</span>}>
         <Trend
           days={ld}
           series={[
@@ -62,16 +62,16 @@ export default function LoadPage() {
           <span><i style={{ background: "var(--load)" }} />средняя за 7 дн</span>
           <span><i style={{ background: "var(--muted)" }} />за 28 дн</span>
         </div>
-        <div className="note">TRIMP учитывает время и интенсивность по пульсу: минута в высокой зоне весит больше, чем в низкой.</div>
+        <div className="note">Баллы нагрузки считаются по пульсу: учитывается и время, и интенсивность, поэтому минута в высокой зоне весит больше, чем в низкой. Силовая тоже даёт баллы, но меньше, чем кардио той же длины.</div>
       </Card>
 
-      <Card title="Неделя к месяцу (ACWR)" color="load">
+      <Card title="Нагрузка недели к обычной" color="load">
         <Trend
           days={ld}
           height={150}
           yMin={0.4}
           yMax={1.8}
-          band={{ lo: 0.8, hi: 1.3, label: "безопасная зона 0,8–1,3" }}
+          band={{ lo: 0.8, hi: 1.3, label: "безопасно 80–130%" }}
           series={[{ key: "acwr", values: load.map((l) => l.acwr), color: "var(--load)", kind: "line" }]}
           readout={(i) => {
             const v = i == null ? last?.acwr : load[i].acwr;
@@ -80,14 +80,14 @@ export default function LoadPage() {
               <div className="row-between" style={{ alignItems: "end" }}>
                 <div>
                   <div className="muted small">{i == null ? "Сейчас" : fmtDayShort(ld[i])}</div>
-                  <div className="val">{num(v, 2)}</div>
+                  <div className="val">{v != null ? Math.round(v * 100) : "—"}<small>% от обычной</small></div>
                 </div>
                 <span className="pill" style={{ color: `var(--${s.color})` }}>{s.label}</span>
               </div>
             );
           }}
         />
-        <div className="note">Выше 1,3 нагрузка растёт быстрее, чем организм успевает адаптироваться, и риск травмы выше. Ниже 0,8 форма постепенно теряется.</div>
+        <div className="note">Сравнивает нагрузку последних 7 дней со средней за 4 недели. 100% значит, что неделя как обычно. Выше 130% нагрузка растёт быстрее, чем организм успевает привыкнуть, и риск травмы выше. Ниже 80% форма постепенно теряется.</div>
       </Card>
 
       <Card title="Готовность по дням" color="move">
@@ -109,7 +109,7 @@ export default function LoadPage() {
           }}
         />
         <div className="note">
-          Готовность считается по HRV, пульсу покоя, сну, температуре и дыханию против вашей нормы за 30 дней.
+          Готовность считается по вариабельности пульса (ВСР), пульсу покоя, сну, температуре и дыханию против вашей нормы за 30 дней.
           {minR && ` Самая низкая за период: ${num(minR.readiness)} (${fmtDayShort(minR.day)}).`}
         </div>
       </Card>

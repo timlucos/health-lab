@@ -205,3 +205,22 @@ textarea.field { resize: vertical; min-height: 80px; line-height: 1.4; }
 .bubble { padding: 10px 12px; border-radius: 14px; max-width: 92%; line-height: 1.45; }
 .bubble.me { justify-self: end; background: color-mix(in srgb, var(--air) 16%, var(--card)); }
 .bubble.ai { justify-self: start; background: color-mix(in srgb, var(--ink) 6%, var(--card)); }
+
+/* кардионагрузка за неделю */
+.ring-center { position: relative; display: grid; place-items: center; }
+.ring-center-v { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; line-height: 1.05; }
+.ring-center-v b { font-family: var(--fr); font-size: 26px; font-variant-numeric: tabular-nums; }
+.ring-center-v small { font-size: 11px; color: var(--muted); font-weight: 600; }
+.week-bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; height: 52px; align-items: end; }
+.week-bars > div { display: grid; grid-template-rows: 1fr auto; height: 100%; gap: 2px; justify-items: center; }
+.week-bars i { width: 100%; max-width: 14px; align-self: end; border-radius: 4px; background: var(--ring3); }
+.week-bars span { font-size: 10px; color: var(--muted); }
+.gloss { display: grid; gap: 2px; }
+.gloss details { border-top: 1px solid var(--hair); padding: 10px 0; }
+.gloss details:first-child { border-top: 0; padding-top: 2px; }
+.gloss summary { font-weight: 600; cursor: pointer; list-style: none; display: flex; justify-content: space-between; }
+.gloss summary::after { content: "+"; color: var(--muted); }
+.gloss details[open] summary::after { content: "−"; }
+.gloss summary::-webkit-details-marker { display: none; }
+.gloss p { margin: 6px 0 0; }
+.stack-label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
