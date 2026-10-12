@@ -4,6 +4,9 @@
 
 const URL_ = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
+// Серверный ключ: им зовёт утренняя сводка (функция morning) по расписанию, без входа пользователя.
+const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const SVC = "service";
 const KEY = Deno.env.get("AI_API_KEY") ?? "";
 const BASE = (Deno.env.get("AI_BASE_URL") ?? "https://api.proxyapi.ru/v1").replace(/\/$/, "");
 const MODEL = Deno.env.get("AI_MODEL") ?? "anthropic/claude-sonnet-5";
@@ -25,11 +28,19 @@ function cost(model: string, tin: number, tout: number): number | null {
   return p ? Math.round(((tin * p[1] + tout * p[2]) / 1e6) * 100) / 100 : null;
 }
 
-type AiOut = { out: { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number }; error?: { message?: string } } | null; model: string; ok: boolean; status: number };
+type AiOut = { out: { choices?: { message?: { content?: unknown }; finish_reason?: string }[]; usage?: { prompt_tokens?: number; completion_tokens?: number }; error?: { message?: string } } | null; model: string; ok: boolean; status: number; text: string };
+
+/** Текст ответа: строка или массив частей [{type:"text",text}] — разные провайдеры отдают по-разному. */
+function textOf(out: AiOut["out"]): string {
+  const c = out?.choices?.[0]?.message?.content;
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) return c.map((p) => (typeof p === "string" ? p : (p as { text?: string })?.text ?? "")).join("");
+  return "";
+}
 
 /** Запрос к модели с запасной: если первая ответила ошибкой, пробуем следующую. */
 async function complete(models: string[], payload: Record<string, unknown>): Promise<AiOut> {
-  let last: AiOut = { out: null, model: models[0], ok: false, status: 0 };
+  let last: AiOut = { out: null, model: models[0], ok: false, status: 0, text: "" };
   for (const model of [...new Set(models.filter(Boolean))]) {
     try {
       const r = await fetch(`${BASE}/chat/completions`, {
@@ -38,10 +49,11 @@ async function complete(models: string[], payload: Record<string, unknown>): Pro
         body: JSON.stringify({ model, ...payload }),
       });
       const out = await r.json().catch(() => null);
-      last = { out, model, ok: r.ok && !!out?.choices?.[0]?.message?.content, status: r.status };
+      const text = textOf(out);
+      last = { out, model, ok: r.ok && !!text.trim(), status: r.status, text };
       if (last.ok) return last;
     } catch (e) {
-      last = { out: { error: { message: String(e).slice(0, 200) } }, model, ok: false, status: 0 };
+      last = { out: { error: { message: String(e).slice(0, 200) } }, model, ok: false, status: 0, text: "" };
     }
   }
   return last;
@@ -51,6 +63,22 @@ const usage = (a: AiOut) => {
   return { tin, tout, rub: cost(a.model, tin, tout) };
 };
 
+/** Почему ответа нет — по-русски, для пользователя и для записи в «Разборы». */
+function why(a: AiOut): string {
+  const fr = a.out?.choices?.[0]?.finish_reason;
+  if (a.out?.error?.message) return a.out.error.message;
+  if (fr === "length") return "модель потратила весь лимит на размышления и не успела написать ответ";
+  if (a.status && a.status !== 200) return `сервис ответил кодом ${a.status}`;
+  return `пустой ответ${fr ? ` (${fr})` : ""}`;
+}
+
+/** Ошибка, за которую уже заплачено: сохраняем в «Разборы», чтобы было видно, куда ушли деньги. */
+async function logFailed(auth: string, kind: string, day: string, a: AiOut) {
+  const { tin, tout, rub } = usage(a);
+  if (!tin && !tout) return;
+  await rpc(auth, "hl_ai_log", { kind, d: day, model: a.model, question: null, answer: `**Ответ не получен:** ${why(a)}. Списано ${rub ?? "?"} ₽ — попробуйте ещё раз.`, tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub }).catch(() => {});
+}
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
@@ -59,7 +87,10 @@ const CORS = {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 async function rpc(auth: string, fn: string, args: Record<string, unknown>) {
-  const r = await fetch(`${URL_}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: ANON, Authorization: auth, "Content-Type": "application/json" }, body: JSON.stringify(args) });
+  const h: Record<string, string> = auth === SVC
+    ? (SERVICE.startsWith("eyJ") ? { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` } : { apikey: SERVICE })
+    : { apikey: ANON, Authorization: auth };
+  const r = await fetch(`${URL_}/rest/v1/rpc/${fn}`, { method: "POST", headers: { ...h, "Content-Type": "application/json" }, body: JSON.stringify(args) });
   const text = await r.text();
   if (!r.ok) throw Object.assign(new Error(text), { status: r.status });
   return text ? JSON.parse(text) : null;
@@ -96,8 +127,8 @@ function compact(o: unknown) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return json({ error: "method" }, 405);
-  const auth = req.headers.get("Authorization") ?? "";
-  if (!auth.startsWith("Bearer ")) return json({ error: "unauthorized" }, 401);
+  const auth = SERVICE && req.headers.get("apikey") === SERVICE ? SVC : req.headers.get("Authorization") ?? "";
+  if (auth !== SVC && !auth.startsWith("Bearer ")) return json({ error: "unauthorized" }, 401);
 
   let body: { kind?: string; day?: string; question?: string; history?: { role: string; content: string }[]; text?: string; image?: string; code?: string };
   try {
@@ -122,9 +153,9 @@ Deno.serve(async (req) => {
       rpc(auth, "hl_review", { d: day }),
       rpc(auth, "hl_goal", {}),
       rpc(auth, "hl_food_day", { d: day }),
-      withPrev ? rpc(auth, "hl_ai_reports", { k: kind, lim: 1 }) : Promise.resolve([]),
+      withPrev ? rpc(auth, "hl_ai_reports", { k: kind, lim: 4 }) : Promise.resolve([]),
     ]);
-    const prevR = (prevList ?? []).at(-1) as { day: string; answer: string } | undefined;
+    const prevR = ((prevList ?? []) as { day: string; answer: string }[]).filter((r) => !r.answer.startsWith("**Ответ не получен")).at(-1);
     if (!KEY) return json({ error: "no_key" }, 503);
 
     const nDays = kind === "daily" ? 7 : kind === "health" ? 42 : 14;
@@ -172,9 +203,14 @@ Deno.serve(async (req) => {
 
     // Дешёвая модель — для частых коротких задач; недельный и глубокий разбор здоровья — основная (Claude).
     const models = kind === "chat" || kind === "daily" || kind === "workout" ? [LIGHT, MODEL] : [MODEL];
-    const a = await complete(models, { messages, max_tokens: kind === "health" ? 1700 : kind === "daily" ? 500 : 1200, temperature: 0.4 });
-    if (!a.ok) return json({ error: "ai_failed", status: a.status, detail: a.out?.error?.message ?? null }, 502);
-    const answer: string = a.out?.choices?.[0]?.message?.content ?? "";
+    // Лимит с запасом: платим только за реально написанное, а длину ответа держит формат.
+    // С маленьким лимитом модель могла уйти в размышления и не дописать ответ — деньги списаны, текста нет.
+    const a = await complete(models, { messages, max_tokens: kind === "health" ? 6000 : kind === "weekly" ? 5000 : kind === "daily" ? 2000 : 4000, temperature: 0.4 });
+    if (!a.ok) {
+      await logFailed(auth, kind, day, a);
+      return json({ error: "ai_failed", status: a.status, detail: why(a) }, 502);
+    }
+    const answer = a.text;
     const model = a.model;
     const { tin, tout, rub } = usage(a);
     await rpc(auth, "hl_ai_log", { kind, d: day, model, question: kind === "chat" ? String(body.question ?? "").slice(0, 2000) : null, answer, tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub });
@@ -236,9 +272,12 @@ async function food(auth: string, kind: "food" | "label", day: string, text?: st
     if (!img && !hint) return json({ error: "empty" }, 400);
     const content: unknown[] = [{ type: "text", text: kind === "label" ? "Распознай этикетку." : `Что съедено? ${hint ? "Подсказка: " + hint : "Подсказки нет."}` }];
     if (img) content.push({ type: "image_url", image_url: { url: img } });
-    const a = await complete(img ? [MODEL] : [LIGHT, MODEL], { max_tokens: 700, temperature: 0.2, messages: [{ role: "system", content: kind === "label" ? LABEL_SYSTEM : FOOD_SYSTEM }, { role: "user", content: img ? content : (content[0] as { text: string }).text }] });
-    if (!a.ok) return json({ error: "ai_failed", status: a.status, detail: a.out?.error?.message ?? null }, 502);
-    const raw: string = a.out?.choices?.[0]?.message?.content ?? "";
+    const a = await complete(img ? [MODEL] : [LIGHT, MODEL], { max_tokens: 2500, temperature: 0.2, messages: [{ role: "system", content: kind === "label" ? LABEL_SYSTEM : FOOD_SYSTEM }, { role: "user", content: img ? content : (content[0] as { text: string }).text }] });
+    if (!a.ok) {
+      await logFailed(auth, "food", day, a);
+      return json({ error: "ai_failed", status: a.status, detail: why(a) }, 502);
+    }
+    const raw = a.text;
     const parsed = parseJson(raw);
     const { tin, tout, rub } = usage(a);
     await rpc(auth, "hl_ai_log", { kind: "food", d: day, model: a.model, question: kind === "label" ? "этикетка" : hint || "фото", answer: raw.slice(0, 4000), tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub });
@@ -286,12 +325,13 @@ async function mealplan(auth: string, day: string, body: Record<string, unknown>
       week_from: day,
     };
     const job = (async () => {
-      const a = await complete([MODEL], { max_tokens: 7000, temperature: 0.5, messages: [{ role: "system", content: PLAN_SYSTEM }, { role: "user", content: `Составь рацион. Данные (JSON):\n${compact(data)}` }] });
-      const raw: string = a.out?.choices?.[0]?.message?.content ?? "";
+      const a = await complete([MODEL], { max_tokens: 12000, temperature: 0.5, messages: [{ role: "system", content: PLAN_SYSTEM }, { role: "user", content: `Составь рацион. Данные (JSON):\n${compact(data)}` }] });
+      const raw = a.text;
       const plan = a.ok ? parseJson(raw) : null;
+      if (!a.ok) await logFailed(auth, "mealplan", day, a);
       const { tin, tout, rub } = usage(a);
       if (a.ok) await rpc(auth, "hl_ai_log", { kind: "mealplan", d: day, model: a.model, question: "рацион на неделю", answer: plan ? `Рацион №${pid}` : raw.slice(0, 4000), tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub });
-      await rpc(auth, "hl_meal_plan_finish", { pid, plan, err: plan ? null : a.ok ? "Не удалось разобрать ответ ИИ" : (a.out?.error?.message ?? `Ошибка ${a.status}`), model: a.model, cost_rub: rub });
+      await rpc(auth, "hl_meal_plan_finish", { pid, plan, err: plan ? null : a.ok ? "Не удалось разобрать ответ ИИ" : why(a), model: a.model, cost_rub: rub });
     })().catch((e) => rpc(auth, "hl_meal_plan_finish", { pid, plan: null, err: String(e).slice(0, 300), model: MODEL, cost_rub: null }).catch(() => {}));
     // Ответ модели идёт 1–2 минуты: отдаём id сразу, клиент опрашивает статус.
     (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil(job);

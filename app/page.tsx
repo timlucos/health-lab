@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AiCard } from "@/components/AiCard";
+import { PushCard } from "@/components/PushCard";
 import { ActivityRings, Spark } from "@/components/charts";
 import { PasswordCard } from "@/components/Shell";
 import { Card, Delta, ErrorCard, Header, Loading } from "@/components/ui";
@@ -151,6 +152,8 @@ export default function Today() {
           );
         })}
       </div>
+
+      <PushCard />
 
       <Glossary />
 
