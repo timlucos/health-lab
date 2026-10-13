@@ -1,5 +1,5 @@
 // Утренняя сводка: совет на день от ИИ и пуш на телефон (Web Push, ключи VAPID хранятся только в базе).
-// Вечером — напоминание, что не записано; в воскресенье — недельный разбор.
+// Вечером — напоминание, что не записано; в воскресенье — недельный разбор; при заряде часов ≤ 20% — «поставьте на зарядку».
 // Расписание (pg_cron, health.push_tick) зовёт с x-health-key; из приложения — с JWT владельца: подписка, проверка, «прислать сейчас».
 import webpush from "npm:web-push@3.6.7";
 
@@ -77,7 +77,10 @@ async function morning() {
   const plain = advice.replace(/[#*_`>]/g, "").replace(/^\s*[-•]\s*/gm, "").replace(/\n+/g, " ").trim();
   const head = [last?.readiness != null ? `готовность ${Math.round(last.readiness)}` : null, sleep ? `сон ${Math.floor(sleep / 60)} ч ${Math.round(sleep % 60)} мин` : null].filter(Boolean).join(" · ");
   const title = head ? `Доброе утро: ${head}` : "Доброе утро";
-  const body = plain ? (plain.length > 220 ? plain.slice(0, 217) + "…" : plain) : "Откройте «Сегодня»: план и совет на день.";
+  const dev = (await rpc(svc, "hl_devices", {}).catch(() => null))?.list?.[0];
+  const low = dev?.battery != null && dev.battery <= 30 ? `Заряд часов ${dev.battery}%, поставьте на зарядку. ` : "";
+  const text = low + plain;
+  const body = text ? (text.length > 220 ? text.slice(0, 217) + "…" : text) : "Откройте «Сегодня»: план и совет на день.";
   return { sent: await send(title, body, "/"), advice: !!plain, ai };
 }
 
@@ -104,6 +107,13 @@ async function evening() {
   return { sent: await send("Вечерняя проверка", lines.join(" "), entries.length ? "/coach" : "/food") };
 }
 
+/** Заряд часов на исходе: напоминание поставить на зарядку (раз в день, решает health.push_tick). */
+async function battery() {
+  const dev = (await rpc(svc, "hl_devices", {}))?.list?.[0];
+  if (!dev || dev.battery == null || dev.battery > 20) return { sent: 0, skipped: "ok" };
+  return { sent: await send(`Заряд часов ${dev.battery}%`, `${dev.name ?? "Часы"} скоро сядут. Поставьте на зарядку, чтобы не потерять ночной сон и пульс.`, "/") };
+}
+
 /** Воскресный недельный разбор (Claude) и пуш со ссылкой на него. */
 async function weekly() {
   const r = await fetch(`${URL_}/functions/v1/coach-ai`, {
@@ -125,7 +135,7 @@ Deno.serve(async (req) => {
     const key = req.headers.get("x-health-key");
     if (key) {
       if (!(await rpc(svc, "hl_admin_ok", { k: key }))) return json({ error: "forbidden" }, 403);
-      return json(body.kind === "evening" ? await evening() : body.kind === "weekly" ? await weekly() : await morning());
+      return json(body.kind === "evening" ? await evening() : body.kind === "weekly" ? await weekly() : body.kind === "battery" ? await battery() : await morning());
     }
     const auth = req.headers.get("Authorization") ?? "";
     if (!auth.startsWith("Bearer ")) return json({ error: "unauthorized" }, 401);
