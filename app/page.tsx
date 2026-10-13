@@ -158,7 +158,7 @@ export default function Today() {
       <Glossary />
 
       <p className="note" style={{ textAlign: "center" }}>
-        Данные Google Health{data.sync ? `, обновлено в ${fmtTime(data.sync, tz)} ${fmtDay(new Date(data.sync).toISOString().slice(0, 10))}` : ""}. День {d ? fmtDay(d.day) : "—"}.
+        Данные Google Health{data.sync ? `, обновлено в ${fmtTime(data.sync, tz)} ${fmtDay(new Date(data.sync).toLocaleDateString("en-CA", { timeZone: tz }))}` : ""}. День {d ? fmtDay(d.day) : "—"}.
       </p>
     </>
   );

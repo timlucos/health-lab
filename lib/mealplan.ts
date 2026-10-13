@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { mutate, type Meal, type MealPlanBody, type PlanRecipe } from "./data";
 
 export const WEEK = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"] as const;
@@ -41,3 +42,29 @@ export async function logRecipe(day: string, meal: Meal, r: PlanRecipe, portions
 }
 
 export const photoLink = (name: string) => `https://yandex.ru/images/search?text=${encodeURIComponent(name + " рецепт")}`;
+
+/** Что из рациона уже записано сегодня (хранится на устройстве) и защита от двойного нажатия «Съел». */
+export function useAte(day: string) {
+  const store = `hl-ate-${day}`;
+  const [st, setSt] = useState<Record<string, "busy" | "done">>({});
+  useEffect(() => {
+    try { setSt(JSON.parse(localStorage.getItem(store) ?? "{}")); } catch { setSt({}); }
+  }, [store]);
+  async function eat(meal: Meal, r: PlanRecipe, portions: number) {
+    const k = `${meal}-${r.id}`;
+    if (st[k]) return;
+    setSt((x) => ({ ...x, [k]: "busy" }));
+    try {
+      await logRecipe(day, meal, r, portions);
+      setSt((x) => {
+        const next = { ...x, [k]: "done" as const };
+        try { localStorage.setItem(store, JSON.stringify(Object.fromEntries(Object.entries(next).filter(([, v]) => v === "done")))); } catch {}
+        return next;
+      });
+    } catch (e) {
+      setSt((x) => { const { [k]: _, ...rest } = x; return rest; });
+      throw e;
+    }
+  }
+  return { state: (meal: string, id: string) => st[`${meal}-${id}`], eat };
+}

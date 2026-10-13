@@ -10,7 +10,7 @@ import {
   type FoodGuess, type Meal, type Product,
 } from "@/lib/data";
 import { MEALS, mealNow, shrinkImage, targets } from "@/lib/nutrition";
-import { logRecipe, planDay, recipeOf, weekdayKey } from "@/lib/mealplan";
+import { planDay, recipeOf, useAte, weekdayKey } from "@/lib/mealplan";
 
 type Draft = { name: string; grams: number; k: number; p: number; f: number; c: number; product_id?: number | null; source: string };
 const per = (d: Draft) => ({ kcal: (d.k * d.grams) / 100, protein: (d.p * d.grams) / 100, fat: (d.f * d.grams) / 100, carbs: (d.c * d.grams) / 100 });
@@ -33,7 +33,7 @@ export default function FoodPage() {
   const entries = day.data?.entries ?? [];
   const tot = useMemo(() => entries.reduce((a, e) => ({ kcal: a.kcal + (e.kcal ?? 0), protein: a.protein + (e.protein ?? 0), fat: a.fat + (e.fat ?? 0), carbs: a.carbs + (e.carbs ?? 0) }), { kcal: 0, protein: 0, fat: 0, carbs: 0 }), [entries]);
 
-  if (sum.error || day.error) return <ErrorCard error={(sum.error ?? day.error)!} onRetry={day.reload} />;
+  if (sum.error || day.error) return <ErrorCard error={(sum.error ?? day.error)!} onRetry={() => { sum.reload(); day.reload(); }} />;
 
   const fail = (e: unknown) => setErr(e instanceof AiError || e instanceof Error ? e.message : String(e));
   const fromGuess = (items: FoodGuess[] = [], source: string): Draft[] =>
@@ -57,8 +57,12 @@ export default function FoodPage() {
   }
 
   async function remove(id: number) {
-    await mutate("hl_food_remove", { entry_id: id });
-    day.reload();
+    try {
+      await mutate("hl_food_remove", { entry_id: id });
+      day.reload();
+    } catch (e) {
+      fail(e);
+    }
   }
 
   return (
@@ -295,7 +299,8 @@ function BarcodeAdd({ day, busy, setBusy, onProduct, onError }: AddProps & { onP
 /** Сегодня по рациону: блюда из недельного плана, запись в дневник в одно касание. */
 function PlanToday({ today, onLogged }: { today: string; onLogged: () => void }) {
   const mp = useMealPlan(null);
-  const [done, setDone] = useState<Record<number, boolean>>({});
+  const ate = useAte(today);
+  const [err, setErr] = useState("");
   const row = mp.data?.plan;
   const plan = row?.status === "ready" ? row.plan : null;
   const d = plan ? planDay(plan, weekdayKey(today)) : null;
@@ -303,7 +308,7 @@ function PlanToday({ today, onLogged }: { today: string; onLogged: () => void })
   if (!plan || !d) {
     return (
       <Card title="Рацион на неделю" color="food" href="/food/plan">
-        <div className="note">{row?.status === "pending" ? "Claude составляет рацион…" : "Меню на 7 дней с готовкой впрок: рецепты, список покупок и цены в «Пятёрочке»."}</div>
+        <div className="note">{row?.status === "pending" && Date.now() - Date.parse(row.created_at) < 6 * 60e3 ? "Claude составляет рацион…" : "Меню на 7 дней с готовкой впрок: рецепты, список покупок и цены в «Пятёрочке»."}</div>
       </Card>
     );
   }
@@ -313,6 +318,7 @@ function PlanToday({ today, onLogged }: { today: string; onLogged: () => void })
         {d.meals.map(([meal, id, n], i) => {
           const r = recipeOf(plan, id);
           if (!r) return null;
+          const s = ate.state(meal, id);
           return (
             <div key={i} className="li">
               <div>
@@ -320,14 +326,15 @@ function PlanToday({ today, onLogged }: { today: string; onLogged: () => void })
                 <div className="n">{r.emoji ?? "🍽"} {r.name}</div>
                 <div className="note">{Math.round(r.kcal * n)} ккал · белок {Math.round(r.protein * n)} г</div>
               </div>
-              <button className={"chip" + (done[i] ? " on" : "")} disabled={done[i]}
-                onClick={async () => { await logRecipe(today, meal, r, n); setDone((x) => ({ ...x, [i]: true })); onLogged(); }}>
-                {done[i] ? "Записано" : "Съел"}
+              <button className={"chip" + (s === "done" ? " on" : "")} disabled={!!s}
+                onClick={async () => { setErr(""); try { await ate.eat(meal, r, n); onLogged(); } catch (e) { setErr("Не записалось: " + (e instanceof Error ? e.message : String(e))); } }}>
+                {s === "done" ? "Записано" : s === "busy" ? "…" : "Съел"}
               </button>
             </div>
           );
         })}
       </div>
+      {err && <p className="note" style={{ color: "var(--bad)" }}>{err}</p>}
     </Card>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
 import {
   AiError, localToday, num, startMealPlan, useGoal, useMealPlan, useProgress, useSummary,
@@ -10,7 +10,7 @@ import {
 } from "@/lib/data";
 import { rub } from "@/lib/ai";
 import { MEALS, targets, type Targets } from "@/lib/nutrition";
-import { WEEK, dayTotals, logRecipe, photoLink, planDay, recipeOf, weekdayKey } from "@/lib/mealplan";
+import { WEEK, dayTotals, photoLink, planDay, recipeOf, useAte, weekdayKey } from "@/lib/mealplan";
 
 export default function PlanPage() {
   return (
@@ -45,6 +45,7 @@ function Plan() {
   const sum = useSummary(60);
   const today = localToday(sum.data?.tz);
   const st = useMealPlan(idParam);
+  const router = useRouter();
   const goal = useGoal();
   const pr = useProgress(8);
   const weight = pr.data?.checkins.filter((c) => c.weight_kg != null).at(-1)?.weight_kg ?? null;
@@ -78,7 +79,7 @@ function Plan() {
           )}
           {row?.status === "error" && !form && <p className="note" style={{ color: "var(--bad)" }}>Не получилось составить рацион: {row.error ?? "ошибка ИИ"}. Попробуйте ещё раз.</p>}
           {row?.status === "pending" && !pending && !form && <p className="note" style={{ color: "var(--bad)" }}>Ответ так и не пришёл. Попробуйте ещё раз.</p>}
-          {showForm && !pending && <PlanForm today={today} t={t} onStarted={() => { setForm(false); st.reload(); }} />}
+          {showForm && !pending && <PlanForm today={today} t={t} onStarted={() => { setForm(false); if (idParam) router.replace("/food/plan"); else st.reload(); }} />}
           {row?.status === "ready" && row.plan && !form && <PlanView row={row} plan={row.plan} today={today} t={t} onNew={() => setForm(true)} />}
           {(st.data.list.length > 1 || (st.data.list.length === 1 && idParam)) && (
             <Card title="Прошлые рационы" color="air">
@@ -176,7 +177,7 @@ function PlanView({ row, plan, today, t, onNew }: { row: MealPlanRow; plan: Meal
 
 function Week({ plan, today, t }: { plan: MealPlanBody; today: string; t: Targets | null }) {
   const [d, setD] = useState(weekdayKey(today));
-  const [done, setDone] = useState<Record<string, boolean>>({});
+  const ate = useAte(today);
   const [err, setErr] = useState("");
   const day = planDay(plan, d);
   const tot = dayTotals(plan, d);
@@ -200,9 +201,9 @@ function Week({ plan, today, t }: { plan: MealPlanBody; today: string; t: Target
                   <div className="note">{Math.round(r.kcal * n)} ккал · Б {Math.round(r.protein * n)} · Ж {Math.round(r.fat * n)} · У {Math.round(r.carbs * n)}</div>
                 </div>
                 {isToday && (
-                  <button className={"chip" + (done[key] ? " on" : "")} disabled={done[key]}
-                    onClick={async () => { try { await logRecipe(today, meal, r, n); setDone((x) => ({ ...x, [key]: true })); } catch (e) { setErr(String(e)); } }}>
-                    {done[key] ? "Записано" : "Съел"}
+                  <button className={"chip" + (ate.state(meal, id) === "done" ? " on" : "")} disabled={!!ate.state(meal, id)}
+                    onClick={async () => { setErr(""); try { await ate.eat(meal, r, n); } catch (e) { setErr("Не записалось: " + (e instanceof Error ? e.message : String(e))); } }}>
+                    {ate.state(meal, id) === "done" ? "Записано" : ate.state(meal, id) === "busy" ? "…" : "Съел"}
                   </button>
                 )}
               </div>

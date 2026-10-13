@@ -32,6 +32,8 @@ export function PushCard() {
       if (Notification.permission === "denied") return setSt("denied");
       const reg = await navigator.serviceWorker.register("/sw.js");
       const sub = await reg.pushManager.getSubscription();
+      // iOS иногда меняет адрес подписки: пересохраняем при каждом открытии, чтобы сервер не потерял устройство.
+      if (sub) mutate("hl_push_save", { sub: sub.toJSON(), ua: navigator.userAgent.slice(0, 200) }).catch(() => {});
       setSt(sub ? "on" : "off");
     })().catch(() => setSt("unsupported"));
   }, []);

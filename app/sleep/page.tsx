@@ -28,7 +28,8 @@ function Sleep() {
   const prev = useDay(date ? addDays(date, -1) : null);
 
   if (sum.error) return <ErrorCard error={sum.error} onRetry={sum.reload} />;
-  if (!sum.data || !date) return (<><Header eyebrow="сон" title="Сон" /><Loading /></>);
+  if (!sum.data) return (<><Header eyebrow="сон" title="Сон" /><Loading /></>);
+  if (!date) return (<><Header eyebrow="сон" title="Сон" /><p className="note">Записей сна пока нет. Наденьте часы на ночь — утром здесь появятся фазы, пульс и оценка сна.</p></>);
 
   const go = (n: number) => router.replace(`/sleep?d=${addDays(date, n)}`);
   const idx = days.findIndex((d) => d.day === date);

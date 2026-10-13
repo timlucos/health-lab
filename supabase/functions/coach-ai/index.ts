@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: "bad_json" }, 400);
   }
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(body.day ?? "") ? body.day! : new Date().toISOString().slice(0, 10);
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(body.day ?? "") ? body.day! : new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
   if (body.kind === "barcode") return barcode(auth, String(body.code ?? ""));
   if (body.kind === "food" || body.kind === "label") return food(auth, body.kind, day, body.text, body.image);
   if (body.kind === "mealplan") return mealplan(auth, day, body as Record<string, unknown>);
@@ -213,7 +213,8 @@ Deno.serve(async (req) => {
     const answer = a.text;
     const model = a.model;
     const { tin, tout, rub } = usage(a);
-    await rpc(auth, "hl_ai_log", { kind, d: day, model, question: kind === "chat" ? String(body.question ?? "").slice(0, 2000) : null, answer, tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub });
+    // Ответ уже оплачен: не теряем его, даже если запись в историю не удалась.
+    await rpc(auth, "hl_ai_log", { kind, d: day, model, question: kind === "chat" ? String(body.question ?? "").slice(0, 2000) : null, answer, tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub }).catch(() => {});
     return json({ answer, model, cost_rub: rub });
   } catch (e) {
     const status = (e as { status?: number }).status;
@@ -280,7 +281,7 @@ async function food(auth: string, kind: "food" | "label", day: string, text?: st
     const raw = a.text;
     const parsed = parseJson(raw);
     const { tin, tout, rub } = usage(a);
-    await rpc(auth, "hl_ai_log", { kind: "food", d: day, model: a.model, question: kind === "label" ? "этикетка" : hint || "фото", answer: raw.slice(0, 4000), tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub });
+    await rpc(auth, "hl_ai_log", { kind: "food", d: day, model: a.model, question: kind === "label" ? "этикетка" : hint || "фото", answer: raw.slice(0, 4000), tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub }).catch(() => {});
     if (!parsed) return json({ error: "ai_empty" }, 502);
     return json({ result: parsed, cost_rub: rub });
   } catch (e) {
@@ -324,15 +325,17 @@ async function mealplan(auth: string, day: string, body: Record<string, unknown>
       eats_often: (foodDay?.recent ?? []).slice(0, 12).map((r: { name: string }) => r.name),
       week_from: day,
     };
+    // Ответ идёт 1–2 минуты, ключ входа за это время может истечь: записываем серверным ключом (владелец уже проверен).
+    const w = SERVICE ? SVC : auth;
     const job = (async () => {
       const a = await complete([MODEL], { max_tokens: 12000, temperature: 0.5, messages: [{ role: "system", content: PLAN_SYSTEM }, { role: "user", content: `Составь рацион. Данные (JSON):\n${compact(data)}` }] });
       const raw = a.text;
       const plan = a.ok ? parseJson(raw) : null;
-      if (!a.ok) await logFailed(auth, "mealplan", day, a);
+      if (!a.ok) await logFailed(w, "mealplan", day, a);
       const { tin, tout, rub } = usage(a);
-      if (a.ok) await rpc(auth, "hl_ai_log", { kind: "mealplan", d: day, model: a.model, question: "рацион на неделю", answer: plan ? `Рацион №${pid}` : raw.slice(0, 4000), tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub });
-      await rpc(auth, "hl_meal_plan_finish", { pid, plan, err: plan ? null : a.ok ? "Не удалось разобрать ответ ИИ" : why(a), model: a.model, cost_rub: rub });
-    })().catch((e) => rpc(auth, "hl_meal_plan_finish", { pid, plan: null, err: String(e).slice(0, 300), model: MODEL, cost_rub: null }).catch(() => {}));
+      if (a.ok) await rpc(w, "hl_ai_log", { kind: "mealplan", d: day, model: a.model, question: "рацион на неделю", answer: plan ? `Рацион №${pid}` : raw.slice(0, 4000), tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub });
+      await rpc(w, "hl_meal_plan_finish", { pid, plan, err: plan ? null : a.ok ? "Не удалось разобрать ответ ИИ" : why(a), model: a.model, cost_rub: rub });
+    })().catch((e) => rpc(w, "hl_meal_plan_finish", { pid, plan: null, err: String(e).slice(0, 300), model: MODEL, cost_rub: null }).catch(() => {}));
     // Ответ модели идёт 1–2 минуты: отдаём id сразу, клиент опрашивает статус.
     (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil(job);
     return json({ id: pid, status: "pending" });

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AiCard } from "@/components/AiCard";
 import { Trend } from "@/components/charts";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
-import { fmtDay, fmtDayShort, localToday, mutate, num, useProgress, useSummary, type Checkin } from "@/lib/data";
+import { fmtDay, fmtDayShort, localToday, mutate, num, useGoal, useProgress, useSummary, type Checkin, type Goal } from "@/lib/data";
 
 const FIELDS: { key: keyof Checkin; label: string; unit: string }[] = [
   { key: "weight_kg", label: "Вес", unit: "кг" },
@@ -21,8 +21,9 @@ export default function ProgressPage() {
   const sum = useSummary(60);
   const today = localToday(sum.data?.tz);
   const pr = useProgress(26);
+  const goal = useGoal();
 
-  if (sum.error || pr.error) return <ErrorCard error={(sum.error ?? pr.error)!} onRetry={pr.reload} />;
+  if (sum.error || pr.error) return <ErrorCard error={(sum.error ?? pr.error)!} onRetry={() => { sum.reload(); pr.reload(); }} />;
   if (!sum.data || !pr.data) return <Loading n={3} />;
   const p = pr.data;
   return (
@@ -31,7 +32,7 @@ export default function ProgressPage() {
         <Link href="/coach" className="muted small">‹ Тренер</Link>
       </Header>
       <CheckinForm today={today} checkins={p.checkins} onSaved={pr.reload} />
-      <WeightCard checkins={p.checkins} />
+      <WeightCard checkins={p.checkins} goal={goal.data ?? null} />
       <VolumeCard weeks={p.weeks} />
       <LiftsCard lifts={p.lifts} names={p.names ?? {}} />
       <FeelCard reviews={p.reviews} />
@@ -97,13 +98,31 @@ function CheckinForm({ today, checkins, onSaved }: { today: string; checkins: Ch
   );
 }
 
-function WeightCard({ checkins }: { checkins: Checkin[] }) {
+/** Темп веса (кг/нед, наклон по замерам последних 8 недель) и прогноз к дате цели. */
+function weightForecast(rows: Checkin[], goal: Goal | null) {
+  const t = (d: string) => new Date(d + "T12:00:00").getTime() / (7 * 864e5);
+  const last = rows.at(-1)!;
+  const pts = rows.filter((r) => t(last.day) - t(r.day) <= 8);
+  if (pts.length < 2 || t(last.day) - t(pts[0].day) < 1) return null;
+  const mx = pts.reduce((a, r) => a + t(r.day), 0) / pts.length;
+  const my = pts.reduce((a, r) => a + r.weight_kg!, 0) / pts.length;
+  const rate = pts.reduce((a, r) => a + (t(r.day) - mx) * (r.weight_kg! - my), 0) / pts.reduce((a, r) => a + (t(r.day) - mx) ** 2, 0);
+  const end = goal?.end_day, target = goal?.details?.target_weight_kg;
+  if (!end || target == null) return { rate };
+  const weeks = Math.max(0, t(end) - t(last.day));
+  if (weeks < 1) return { rate };
+  const need = (target - last.weight_kg!) / weeks;
+  return { rate, at: last.weight_kg! + rate * weeks, end, target, need };
+}
+
+function WeightCard({ checkins, goal }: { checkins: Checkin[]; goal: Goal | null }) {
   const rows = checkins.filter((c) => c.weight_kg != null);
   if (rows.length < 2) return null;
   const first = rows[0], last = rows.at(-1)!;
   const d = last.weight_kg! - first.weight_kg!;
   const waist = checkins.filter((c) => c.waist_cm != null);
   const dw = waist.length >= 2 ? waist.at(-1)!.waist_cm! - waist[0].waist_cm! : null;
+  const fc = weightForecast(rows, goal);
   return (
     <Card title="Вес" color="ring2">
       <Trend
@@ -122,6 +141,13 @@ function WeightCard({ checkins }: { checkins: Checkin[] }) {
           );
         }}
       />
+      {fc && (
+        <p className="note">
+          Темп {fc.rate >= 0 ? "+" : ""}{num(fc.rate, 2)} кг в неделю.
+          {fc.at != null && <> При нём к {fmtDay(fc.end!)} будет ≈ {num(fc.at, 1)} кг при цели {num(fc.target!, 1)}. </>}
+          {fc.need != null && Math.abs(fc.need - fc.rate) > 0.1 && <>Нужно {fc.need >= 0 ? "+" : ""}{num(fc.need, 2)} кг в неделю: {fc.need > fc.rate ? "прибавьте" : "убавьте"} примерно {Math.round((Math.abs(fc.need - fc.rate) * 7700) / 7 / 50) * 50} ккал в день (оценка, проверяйте через 2 недели).</>}
+        </p>
+      )}
       <p className="note">Для набора мышц хороший темп +0,25–0,5% веса в неделю. Если талия растёт быстрее, чем руки и грудь, стоит чуть убавить калории.</p>
     </Card>
   );

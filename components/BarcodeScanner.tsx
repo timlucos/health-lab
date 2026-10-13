@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 
 /** Сканер штрихкодов камерой. На iPhone встроенного BarcodeDetector нет, поэтому ZXing (WASM) с нашего сервера. */
 export function BarcodeScanner({ onCode }: { onCode: (code: string) => void }) {
+  // Колбэк в ref: новые функции при каждом рендере страницы не перезапускают камеру.
+  const cb = useRef(onCode);
+  cb.current = onCode;
   const video = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState("");
   const done = useRef(false);
@@ -18,7 +21,10 @@ export function BarcodeScanner({ onCode }: { onCode: (code: string) => void }) {
         setZXingModuleOverrides({ locateFile: (path: string, prefix: string) => (path.endsWith(".wasm") ? "/zxing_reader.wasm" : prefix + path) });
         const det = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e"] });
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 } }, audio: false });
-        if (!live || !video.current) return;
+        if (!live || !video.current) {
+          stream.getTracks().forEach((t) => t.stop()); // экран закрыли, пока камера включалась
+          return;
+        }
         video.current.srcObject = stream;
         await video.current.play();
         const tick = async () => {
@@ -29,7 +35,7 @@ export function BarcodeScanner({ onCode }: { onCode: (code: string) => void }) {
             if (code) {
               done.current = true;
               navigator.vibrate?.(60);
-              onCode(code);
+              cb.current(code);
               return;
             }
           } catch {}
@@ -45,7 +51,7 @@ export function BarcodeScanner({ onCode }: { onCode: (code: string) => void }) {
       if (timer) clearTimeout(timer);
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [onCode]);
+  }, []);
 
   return (
     <div className="scanner">

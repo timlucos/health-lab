@@ -35,7 +35,7 @@ export default function ReviewPage() {
   }, [saved.data]);
 
   const error = sum.error ?? plan.error ?? saved.error;
-  if (error) return <ErrorCard error={error} onRetry={saved.reload} />;
+  if (error) return <ErrorCard error={error} onRetry={() => { sum.reload(); plan.reload(); saved.reload(); }} />;
   if (!sum.data || saved.loading) return <Loading n={3} />;
 
   const set = (k: keyof Review, v: unknown) => {

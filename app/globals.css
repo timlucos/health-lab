@@ -271,3 +271,4 @@ textarea.field { resize: vertical; min-height: 80px; line-height: 1.4; }
 .push-label small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
 .field.push-time { width: 104px; padding: 8px 10px; font-size: 16px; text-align: center; }
 .field.push-time:disabled { opacity: .45; }
+.set-check.fail { background: color-mix(in srgb, var(--ring1) 20%, var(--card)); color: var(--ring1); }

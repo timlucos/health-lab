@@ -11,12 +11,16 @@ import { rampSets, warmupFor } from "@/lib/warmup";
 
 export default function Workout() {
   const sum = useSummary(60);
-  const today = localToday(sum.data?.tz);
-  const day = usePlan(sum.data ? today : null);
+  // День фиксируется при открытии: тренировка после полуночи остаётся в своём дне.
+  const [fixed, setFixed] = useState<string | null>(null);
+  if (sum.data && !fixed) setFixed(localToday(sum.data.tz));
+  const today = fixed ?? localToday(sum.data?.tz);
+  const day = usePlan(fixed);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
 
-  if (sum.error || day.error) return <ErrorCard error={(sum.error ?? day.error)!} onRetry={day.reload} />;
+  if (sum.error || day.error) return <ErrorCard error={(sum.error ?? day.error)!} onRetry={() => { sum.reload(); day.reload(); }} />;
   if (!day.data) return <Loading n={3} />;
   const p = day.data.plan;
   if (!p)
@@ -29,9 +33,12 @@ export default function Workout() {
 
   async function finish() {
     setBusy(true);
+    setErr("");
     try {
       await mutate("hl_plan_status", { plan_id: p!.id, st: "done" });
       router.push("/coach/review");
+    } catch (e) {
+      setErr("Не сохранилось, проверьте связь и нажмите ещё раз. " + (e instanceof Error ? e.message : ""));
     } finally {
       setBusy(false);
     }
@@ -49,7 +56,10 @@ export default function Workout() {
       {p.status === "done" ? (
         <Link href="/coach/review" className="btn" style={{ textAlign: "center" }}>Итоги тренировки</Link>
       ) : (
-        <button className="btn" onClick={finish} disabled={busy}>{busy ? "Сохраняю…" : "Завершить и подвести итоги"}</button>
+        <>
+          <button className="btn" onClick={finish} disabled={busy}>{busy ? "Сохраняю…" : "Завершить и подвести итоги"}</button>
+          {err && <p className="note">{err}</p>}
+        </>
       )}
     </>
   );
@@ -158,14 +168,18 @@ function SetRowEditor({ no, cardio, reps, weight, row, planId, date, exId, onCha
   const [w, setW] = useState(row?.weight_kg != null ? String(row.weight_kg) : weight != null ? String(weight) : "");
   const [r, setR] = useState(row ? String(row.reps) : String(lowReps));
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const done = !!row;
 
   async function save(on: boolean) {
     setBusy(true);
+    setFailed(false);
     try {
       const wk = w.trim() === "" ? null : Number(w.replace(",", "."));
       await mutate("hl_set_log", { plan_id: planId, d: date, ex_id: exId, set_no: no, reps: on ? (cardio ? 1 : Number(r) || 0) : 0, weight_kg: cardio ? null : wk, rpe: null });
       onChange();
+    } catch {
+      setFailed(true);
     } finally {
       setBusy(false);
     }
@@ -174,7 +188,7 @@ function SetRowEditor({ no, cardio, reps, weight, row, planId, date, exId, onCha
   if (cardio)
     return (
       <button className={"set-check wide" + (done ? " on" : "")} onClick={() => save(!done)} disabled={busy} aria-pressed={done}>
-        {done ? "✓ Сделано" : "Отметить как сделано"}
+        {done ? "✓ Сделано" : failed ? "Не сохранилось — ещё раз" : "Отметить как сделано"}
       </button>
     );
   return (
@@ -188,8 +202,8 @@ function SetRowEditor({ no, cardio, reps, weight, row, planId, date, exId, onCha
         <input inputMode="numeric" value={r} onChange={(e) => setR(e.target.value)} disabled={done || busy} aria-label={`Повторы, подход ${no}`} />
         <small>повт.</small>
       </label>
-      <button className={"set-check" + (done ? " on" : "")} onClick={() => save(!done)} disabled={busy} aria-label={done ? `Отменить подход ${no}` : `Записать подход ${no}`}>
-        ✓
+      <button className={"set-check" + (done ? " on" : "") + (failed ? " fail" : "")} onClick={() => save(!done)} disabled={busy} aria-label={done ? `Отменить подход ${no}` : `Записать подход ${no}`} title={failed ? "Не сохранилось, нажмите ещё раз" : undefined}>
+        {failed ? "!" : "✓"}
       </button>
     </div>
   );
