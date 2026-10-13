@@ -350,3 +350,7 @@ export type MealPlanState = { plan: MealPlanRow | null; list: { id: number; week
 export const useMealPlan = (id: number | null = null) => useRpc<MealPlanState>("hl_meal_plan", { pid: id });
 export const startMealPlan = (day: string, prefs: Record<string, string>, targets: Record<string, number> | null) =>
   invokeAi<{ id: number; status: string }>({ kind: "mealplan", day, prefs, targets });
+
+export type Device = { name: string; type: string | null; battery: number | null; status: "High" | "Medium" | "Low" | "Empty" | null; last_sync: string | null };
+export type Devices = { list: Device[]; checked_at: string | null; drain_per_hour: number | null };
+export const useDevices = () => useRpc<Devices>("hl_devices", {});

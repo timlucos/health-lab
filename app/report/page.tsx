@@ -111,12 +111,12 @@ export default function Report() {
       </Card>
 
       {weights.length > 0 && (
-        <Card title="Вес и замеры" color="ring2">
+        <Card title="Вес" color="ring2">
           <div className="report-table" role="table">
-            <div className="rt-h rt-4" role="row"><span>Дата</span><span>Вес, кг</span><span>Талия, см</span><span>Жир, %</span></div>
+            <div className="rt-h rt-2" role="row"><span>Дата</span><span>Вес, кг</span></div>
             {weights.slice(-8).map((c) => (
-              <div key={c.day} className="rt-r rt-4" role="row">
-                <span>{fmtDay(c.day)}</span><span>{num(c.weight_kg, 1)}</span><span>{num(c.waist_cm, 1)}</span><span>{num(c.body_fat_pct, 1)}</span>
+              <div key={c.day} className="rt-r rt-2" role="row">
+                <span>{fmtDay(c.day)}</span><span>{num(c.weight_kg, 1)}</span>
               </div>
             ))}
           </div>

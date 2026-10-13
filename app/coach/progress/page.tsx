@@ -8,13 +8,8 @@ import { Card, ErrorCard, Header, Loading } from "@/components/ui";
 import { fmtDay, fmtDayShort, localToday, mutate, num, useGoal, useProgress, useSummary, type Checkin, type Goal } from "@/lib/data";
 
 const FIELDS: { key: keyof Checkin; label: string; unit: string }[] = [
+  // Меряем только вес: рост и возраст — в «Цели», остальные замеры владелец не ведёт (просьба 13.10).
   { key: "weight_kg", label: "Вес", unit: "кг" },
-  { key: "waist_cm", label: "Талия", unit: "см" },
-  { key: "chest_cm", label: "Грудь", unit: "см" },
-  { key: "arm_cm", label: "Бицепс", unit: "см" },
-  { key: "hip_cm", label: "Ягодицы", unit: "см" },
-  { key: "thigh_cm", label: "Бедро", unit: "см" },
-  { key: "body_fat_pct", label: "Жир", unit: "%" },
 ];
 
 export default function ProgressPage() {
@@ -79,9 +74,9 @@ function CheckinForm({ today, checkins, onSaved }: { today: string; checkins: Ch
 
   const days = last ? Math.round((Date.parse(today) - Date.parse(last.day)) / 864e5) : null;
   return (
-    <Card title="Замеры недели" color="ring1">
+    <Card title="Вес" color="ring1">
       <p className="note">
-        {days == null ? "Раз в неделю, утром натощак, после туалета. Достаточно веса, остальное по желанию." : days === 0 ? "Сегодняшние замеры сохранены, можно поправить." : `Последние замеры ${days} дн. назад${days >= 7 ? ", пора обновить." : "."}`}
+        {days == null ? "Взвешивайтесь 1–2 раза в неделю утром натощак, после туалета: так цифры сравнимы." : days === 0 ? "Сегодняшний вес сохранён, можно поправить." : `Последнее взвешивание ${days} дн. назад${days >= 7 ? ", пора обновить." : "."}`}
       </p>
       <div className="form2">
         {FIELDS.map((f) => (
@@ -92,7 +87,7 @@ function CheckinForm({ today, checkins, onSaved }: { today: string; checkins: Ch
         ))}
       </div>
       <textarea className="field" rows={2} placeholder="Заметка: самочувствие, питание, сон" value={note} onChange={(e) => { setOk(false); setNote(e.target.value); }} />
-      <button className="btn" onClick={save} disabled={busy}>{busy ? "Сохраняю…" : ok ? "✓ Сохранено" : "Сохранить замеры"}</button>
+      <button className="btn" onClick={save} disabled={busy}>{busy ? "Сохраняю…" : ok ? "✓ Сохранено" : "Сохранить вес"}</button>
       {err && <p className="note" style={{ color: "var(--bad)" }}>Не сохранилось: {err}</p>}
     </Card>
   );
@@ -120,11 +115,9 @@ function WeightCard({ checkins, goal }: { checkins: Checkin[]; goal: Goal | null
   if (rows.length < 2) return null;
   const first = rows[0], last = rows.at(-1)!;
   const d = last.weight_kg! - first.weight_kg!;
-  const waist = checkins.filter((c) => c.waist_cm != null);
-  const dw = waist.length >= 2 ? waist.at(-1)!.waist_cm! - waist[0].waist_cm! : null;
   const fc = weightForecast(rows, goal);
   return (
-    <Card title="Вес" color="ring2">
+    <Card title="Динамика веса" color="ring2">
       <Trend
         days={rows.map((r) => r.day)}
         labels={rows.map((r) => fmtDayShort(r.day))}
@@ -136,7 +129,7 @@ function WeightCard({ checkins, goal }: { checkins: Checkin[]; goal: Goal | null
             <div>
               <div className="muted small">{i == null ? `С ${fmtDay(first.day)}` : fmtDayShort(r.day)}</div>
               <div className="val">{num(r.weight_kg, 1)}<small>кг</small></div>
-              {i == null && <div className="muted small">{d >= 0 ? "+" : ""}{num(d, 1)} кг{dw != null ? ` · талия ${dw >= 0 ? "+" : ""}${num(dw, 1)} см` : ""}</div>}
+              {i == null && <div className="muted small">{d >= 0 ? "+" : ""}{num(d, 1)} кг</div>}
             </div>
           );
         }}
@@ -148,7 +141,7 @@ function WeightCard({ checkins, goal }: { checkins: Checkin[]; goal: Goal | null
           {fc.need != null && Math.abs(fc.need - fc.rate) > 0.1 && <>Нужно {fc.need >= 0 ? "+" : ""}{num(fc.need, 2)} кг в неделю: {fc.need > fc.rate ? "прибавьте" : "убавьте"} примерно {Math.round((Math.abs(fc.need - fc.rate) * 7700) / 7 / 50) * 50} ккал в день (оценка, проверяйте через 2 недели).</>}
         </p>
       )}
-      <p className="note">Для набора мышц хороший темп +0,25–0,5% веса в неделю. Если талия растёт быстрее, чем руки и грудь, стоит чуть убавить калории.</p>
+      <p className="note">Для набора мышц хороший темп +0,25–0,5% веса в неделю. Если вес растёт быстрее 0,5 кг в неделю, это уже лишний жир: уберите 150–200 ккал.</p>
     </Card>
   );
 }

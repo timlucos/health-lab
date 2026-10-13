@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AiCard } from "@/components/AiCard";
 import { PushCard } from "@/components/PushCard";
+import { BatteryCard } from "@/components/BatteryCard";
 import { ActivityRings, Spark } from "@/components/charts";
 import { PasswordCard } from "@/components/Shell";
 import { Card, Delta, ErrorCard, Header, Loading } from "@/components/ui";
@@ -59,6 +60,8 @@ export default function Today() {
     <>
       <Header eyebrow={fmtWeekday(today) + ", " + fmtDay(today)} title="Сегодня" />
       <PasswordCard onlyIfMissing />
+      <PushCard place="top" />
+      <BatteryCard />
 
       <Card>
         <div className="rings-hero">

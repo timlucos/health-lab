@@ -14,7 +14,7 @@ function b64ToBytes(b64: string) {
 }
 
 /** Утренняя сводка: подписка на уведомления (на iPhone — только из приложения на экране «Домой»). */
-export function PushCard() {
+export function PushCard({ place = "bottom" }: { place?: "top" | "bottom" }) {
   const info = useRpc<{ public_key: string | null; devices: number; prefs: Prefs }>("hl_push_info", {});
   const prefs = info.data?.prefs;
   const [st, setSt] = useState<State>("loading");
@@ -92,14 +92,23 @@ export function PushCard() {
   }
 
   if (st === "loading") return null;
+  // Пока уведомления не включены, карточка стоит наверху «Сегодня», после включения — внизу.
+  if ((place === "top") !== (st !== "on")) return null;
   return (
-    <Card title="Утренняя сводка" color="ring2">
+    <Card title="Уведомления" color="ring2">
       {st === "install" && <p className="note">На iPhone уведомления работают только из приложения на экране «Домой»: в Safari нажмите «Поделиться» → «На экран Домой», откройте оттуда и включите здесь. Нужна iOS 16.4 или новее.</p>}
       {st === "unsupported" && <p className="note">Этот браузер не умеет получать уведомления. На iPhone откройте приложение с экрана «Домой».</p>}
       {st === "denied" && <p className="note">Уведомления запрещены. Включите их: Настройки iPhone → Уведомления → Здоровье Лаб.</p>}
       {st === "off" && (
         <>
           <p className="note">Каждое утро: готовность, сон и совет тренера на день — тренироваться или отдыхать, белок, вода, когда лечь. Совет делает DeepSeek, ≈ 1 ₽ в день. Вечером — напоминание, если не записаны еда или тренировка, по воскресеньям — итоги недели.</p>
+          {prefs && (
+            <div className="push-rows">
+              <PushRow label="Утренняя сводка" hint="совет DeepSeek, ≈ 1 ₽" time={prefs.morning} onTime={(v) => save({ morning: v })} />
+              <PushRow label="Вечерняя проверка" hint="без ИИ, бесплатно" on={prefs.evening_on} onToggle={(v) => save({ evening_on: v })} time={prefs.evening} onTime={(v) => save({ evening: v })} />
+              <PushRow label="Итоги недели, вс" hint="разбор Claude, ≈ 10–20 ₽" on={prefs.weekly_on} onToggle={(v) => save({ weekly_on: v })} time={prefs.weekly} onTime={(v) => save({ weekly: v })} />
+            </div>
+          )}
           <button className="btn" onClick={enable} disabled={busy}>{busy ? "Включаю…" : "Включить уведомления"}</button>
         </>
       )}

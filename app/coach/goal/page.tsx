@@ -12,7 +12,6 @@ const BODY: F[] = [
   { key: "height_cm", label: "Рост, см", num: true },
   { key: "start_weight_kg", label: "Вес на старте, кг", num: true },
   { key: "target_weight_kg", label: "Цель по весу, кг", num: true },
-  { key: "target_waist_cm", label: "Талия не больше, см", num: true },
   { key: "creatine_g", label: "Креатин, г в день", num: true, ph: "5" },
   { key: "workouts_per_week", label: "Тренировок в неделю", num: true, ph: "4" },
   { key: "session_min", label: "Минут на тренировку", num: true, ph: "75" },
