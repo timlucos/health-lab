@@ -7,6 +7,7 @@ import { Trend } from "@/components/charts";
 import { Card, ErrorCard, Header, Loading, Seg, SpanSeg, spanDays, type SpanKey } from "@/components/ui";
 import { fmtDayShort, hmText, mean, num, useSummary, type Day } from "@/lib/data";
 import { PasswordCard, signOut } from "@/components/Shell";
+import { daysCsv, saveCsv } from "@/lib/export";
 
 type Metric = { key: keyof Day; label: string; color: string; unit: string; digits?: number; kind: "bar" | "line" };
 
@@ -131,6 +132,11 @@ function Data() {
             </table>
           </div>
         </Card>
+      )}
+      {data && (
+        <button className="btn ghost" onClick={() => saveCsv(`здоровье-${days[0]?.day ?? ""}-${days.at(-1)?.day ?? ""}.csv`, daysCsv(days, data.load))}>
+          Скачать таблицу за период (CSV)
+        </button>
       )}
       <PasswordCard />
       <button className="btn ghost" onClick={() => signOut()} style={{ marginTop: 12 }}>
