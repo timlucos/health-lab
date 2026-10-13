@@ -342,3 +342,4 @@ textarea.field { resize: vertical; min-height: 80px; line-height: 1.4; }
 .preset-nums { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .preset-nums .field { padding: 10px 6px; text-align: center; }
 .preset-nums .stack-label span { font-size: 11px; }
+.plan-dish { display: block; color: inherit; text-decoration: none; }

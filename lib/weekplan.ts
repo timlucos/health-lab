@@ -1,5 +1,5 @@
 // Рацион на неделю из своей базы рецептов — без ИИ: бесплатно, мгновенно и не падает (просьба 13.10).
-// Схема: 2 завтрака по очереди, обед впрок двумя партиями (пн–ср и чт–вс), 3 ужина, перекусы.
+// Схема: 3 завтрака по очереди, обед впрок двумя партиями (пн–ср и чт–вс), 4 ужина, 3 перекуса — чтобы не было скучно.
 // Порции обеда и ужина масштабируются, чтобы попасть в дневную норму калорий; белок в каждом приёме из рецептов.
 import type { Meal, MealPlanBody, PlanRecipe, Recipe } from "./data";
 import { WEEK } from "./mealplan";
@@ -8,14 +8,34 @@ export type WeekPrefs = { meals: number; dislikes: string; have: string[]; cook:
 
 const PANTRY = new Set(["специи", "соль", "вода"]);
 
-// Примерные цены, ₽ за кг (шт для яиц): Москва, «Пятёрочка», осень 2026 — оценка, не данные магазина.
-const PRICE: Record<string, number> = {
-  яйца: 11, творог: 520, курица: 480, индейка: 650, говядина: 900, свинина: 520, фарш: 520, рыба: 450, тунец: 1300, лосось: 1800, минтай: 380, креветки: 1100,
-  кефир: 110, йогурт: 350, молоко: 95, сыр: 900, моцарелла: 1100, сметана: 330, гречка: 110, рис: 120, овсянка: 100, макароны: 150, булгур: 200, картофель: 50,
-  хлеб: 180, лаваш: 300, фасоль: 220, нут: 250, чечевица: 220, горох: 120, помидоры: 280, огурцы: 220, перец: 400, лук: 50, морковь: 50, капуста: 45, брокколи: 450,
-  кабачок: 150, грибы: 400, шпинат: 900, зелень: 800, чеснок: 450, банан: 150, яблоко: 160, ягоды: 600, орехи: 1200, "арахисовая паста": 700, мёд: 700,
-  протеин: 2500, масло: 180, авокадо: 900, кукуруза: 300, редис: 300, лимон: 300, мука: 70, "томатная паста": 400, "соевый соус": 500, сахар: 90,
+// Магазинные упаковки и примерные цены: Москва, «Пятёрочка», осень 2026 — оценка, не данные магазина.
+// В покупках считаем целые упаковки (масло — бутылкой, творог — пачками), иначе сумма не сходится с чеком.
+// [грамм в упаковке, как называется, ₽ за упаковку]; без упаковки (овощи, фрукты) — на развес, ₽ за кг.
+const PACK: Record<string, [number, string, number]> = {
+  творог: [180, "пачка 180 г", 105], курица: [900, "лоток 0,9 кг", 430], индейка: [500, "лоток 0,5 кг", 330], говядина: [500, "лоток 0,5 кг", 480],
+  свинина: [500, "лоток 0,5 кг", 270], фарш: [400, "лоток 400 г", 220], рыба: [500, "упак. 0,5 кг", 230], тунец: [185, "банка 185 г", 200],
+  лосось: [200, "упак. 200 г", 380], минтай: [1000, "упак. 1 кг", 380], креветки: [500, "упак. 0,5 кг", 560], кефир: [900, "бут. 0,9 л", 100],
+  йогурт: [300, "стакан 300 г", 140], молоко: [900, "бут. 0,9 л", 90], сыр: [200, "кусок 200 г", 190], моцарелла: [125, "шарик 125 г", 130],
+  сметана: [300, "стакан 300 г", 100], гречка: [900, "пачка 0,9 кг", 100], рис: [900, "пачка 0,9 кг", 110], овсянка: [400, "пачка 400 г", 60],
+  макароны: [450, "пачка 450 г", 70], булгур: [500, "пачка 500 г", 100], фасоль: [400, "банка 400 г", 110], нут: [400, "банка 400 г", 120],
+  чечевица: [450, "пачка 450 г", 100], горох: [800, "пачка 0,8 кг", 90], мука: [1000, "пачка 1 кг", 70], хлеб: [400, "батон 400 г", 70],
+  лаваш: [200, "упак. 200 г", 60], масло: [830, "бут. 0,9 л", 160], мёд: [250, "банка 250 г", 230], протеин: [900, "банка 0,9 кг", 2300],
+  "томатная паста": [270, "банка 270 г", 100], "соевый соус": [150, "бут. 150 мл", 90], сахар: [1000, "пачка 1 кг", 90], орехи: [150, "упак. 150 г", 200],
+  "арахисовая паста": [340, "банка 340 г", 250], ягоды: [300, "замороженные 300 г", 180], кукуруза: [340, "банка 340 г", 100], грибы: [400, "лоток 400 г", 160],
+  шпинат: [150, "упак. 150 г", 140], зелень: [50, "пучок", 50], брокколи: [400, "замороженная 400 г", 160], авокадо: [200, "шт", 120], лимон: [120, "шт", 50],
 };
+const PER_KG: Record<string, number> = { картофель: 50, помидоры: 280, огурцы: 220, перец: 400, лук: 50, морковь: 50, капуста: 45, кабачок: 150, чеснок: 450, банан: 150, яблоко: 160, редис: 300 };
+const EGGS_PACK = 10, EGGS_RUB = 120;
+// Запасы, которые покупают раз в месяцы и обычно уже есть дома: в сумму недели не входят, цена — справочно.
+const STAPLES = new Set(["масло", "мёд", "мука", "сахар", "томатная паста", "соевый соус", "протеин", "арахисовая паста"]);
+
+// «Не ем рыбу» исключает и всё рыбное: минтай, тунец, лосось, креветки.
+const SYNONYMS: Record<string, string[]> = {
+  рыб: ["рыба", "тунец", "лосось", "минтай", "креветки", "сёмг", "семг", "горбуш", "форел", "скумбри", "треск", "хек"],
+  мяс: ["говядина", "свинина", "фарш"],
+  молок: ["молоко", "кефир", "йогурт", "творог", "сыр", "сметана", "моцарелла"],
+};
+
 const AISLE: [string, string[]][] = [
   ["Мясо и птица", ["курица", "индейка", "говядина", "свинина", "фарш"]],
   ["Рыба и морепродукты", ["рыба", "тунец", "лосось", "минтай", "креветки"]],
@@ -35,11 +55,20 @@ function rng(seed: number) {
 
 const words = (s: string) => s.toLowerCase().split(/[,;\n]+/).map((x) => x.trim()).filter((x) => x.length > 2);
 
+/** Есть ли в блюде то, что он не ест («рыба, грибы»): по названию, продуктам и их группам. */
+export function excluded(r: Recipe, dislikes: string): boolean {
+  const stems = words(dislikes).flatMap((w) => {
+    const st = w.length > 4 ? w.slice(0, -1) : w;
+    return [st, ...(Object.entries(SYNONYMS).find(([k]) => st.startsWith(k))?.[1] ?? [])];
+  });
+  const text = [r.name, ...r.ingredients.flatMap((i) => [i.name, i.key])].join(" ").toLowerCase();
+  return stems.some((s) => text.includes(s));
+}
+
 export function buildWeekPlan(all: Recipe[], t: { kcal: number; protein: number }, p: WeekPrefs): MealPlanBody {
   const rand = rng(p.seed ?? Date.now());
-  const bad = words(p.dislikes);
   const have = new Set(p.have);
-  const ok = all.filter((r) => !bad.some((w) => r.name.toLowerCase().includes(w.slice(0, -1)) || r.ingredients.some((i) => i.name.toLowerCase().includes(w.slice(0, -1)) || i.key.includes(w.slice(0, -1)))));
+  const ok = all.filter((r) => !excluded(r, p.dislikes));
 
   // Оценка: калорийность ближе к доле дневной нормы для этого приёма, белка не меньше 25 г (перекус — 15 г),
   // совпадение с тем, что дома, избранное, немного случайности для разнообразия.
@@ -56,10 +85,10 @@ export function buildWeekPlan(all: Recipe[], t: { kcal: number; protein: number 
   };
   const used = new Set<string>();
   const sn = p.meals >= 5 ? 0.2 : p.meals === 4 ? 0.12 : 0;
-  const breakfasts = pick((r) => r.meals.includes("breakfast"), 2, used, 0.25);
+  const breakfasts = pick((r) => r.meals.includes("breakfast"), 3, used, 0.25);
   const prep = pick((r) => (r.meals.includes("lunch") || r.meals.includes("dinner")) && (r.tags.includes("впрок") || r.tags.includes("в контейнер")), 2, used, (1 - 0.25 - sn) / 2);
-  const dinners = pick((r) => r.meals.includes("dinner") || r.meals.includes("lunch"), 3, used, (1 - 0.25 - sn) / 2);
-  const snacks = p.meals >= 4 ? pick((r) => r.meals.includes("snack"), 2, used, p.meals >= 5 ? 0.1 : 0.12, 15) : [];
+  const dinners = pick((r) => r.meals.includes("dinner") || r.meals.includes("lunch"), 4, used, (1 - 0.25 - sn) / 2);
+  const snacks = p.meals >= 4 ? pick((r) => r.meals.includes("snack"), 3, used, p.meals >= 5 ? 0.1 : 0.12, 15) : [];
   if (!breakfasts.length || !prep.length || !dinners.length) throw new Error("В базе мало рецептов под ваши ограничения. Уберите часть исключений.");
 
   // Дни: слоты и базовые порции.
@@ -112,12 +141,26 @@ export function buildWeekPlan(all: Recipe[], t: { kcal: number; protein: number 
       shopMap.set(id, x);
     }
   }
-  const shop = [...shopMap.values()].map((x) => ({
-    home: have.has(x.key),
-    name: have.has(x.key) ? `${x.name} (есть дома?)` : x.name, qty: qty(x.key, x.g), aisle: aisleOf(x.key),
-    rub: PRICE[x.key] ? Math.round(((x.key === "яйца" ? Math.ceil(x.g / 55) : x.g / 1000) * PRICE[x.key]) / 10) * 10 : undefined,
-  })).sort((a, b) => a.aisle.localeCompare(b.aisle, "ru"));
-  const budget = shop.reduce((a, x) => a + (x.home ? 0 : x.rub ?? 0), 0);
+  const shop = [...shopMap.values()].map((x) => {
+    const home = have.has(x.key);
+    const need = qty(x.key, x.g);
+    let buy = need, rub: number | undefined;
+    if (x.key === "яйца") {
+      const n = Math.ceil(Math.ceil(x.g / 55) / EGGS_PACK);
+      buy = `${n} × 10 шт`; rub = n * EGGS_RUB;
+    } else if (PACK[x.key]) {
+      const [g, label, price] = PACK[x.key];
+      const n = Math.ceil((x.g * 0.97) / g); // 3% запаса: 920 г при упаковке 900 г — всё равно одна упаковка
+      buy = `${n} × ${label}`; rub = n * price;
+    } else if (PER_KG[x.key]) {
+      const kg = Math.ceil(x.g / 100) / 10;
+      buy = `${kg.toLocaleString("ru-RU")} кг`; rub = Math.round((kg * PER_KG[x.key]) / 5) * 5;
+    }
+    const q = buy === need ? need : `${buy} (нужно ${need})`;
+    if (STAPLES.has(x.key)) return { name: x.name, qty: rub ? `${q}, если нет — ≈ ${rub} ₽` : q, aisle: "Проверьте запасы дома", rub: undefined };
+    return { name: home ? `${x.name} (есть дома)` : x.name, qty: q, aisle: aisleOf(x.key), rub: home ? undefined : rub };
+  }).sort((a, b) => Number(a.aisle.startsWith("Проверьте")) - Number(b.aisle.startsWith("Проверьте")) || a.aisle.localeCompare(b.aisle, "ru"));
+  const budget = shop.reduce((a, x) => a + (x.rub ?? 0), 0);
 
   // Готовка впрок: две сессии.
   const [s1, s2] = p.cook.split(/\s+и\s+|,/).map((x) => x.trim()).filter(Boolean);
@@ -143,7 +186,7 @@ export function buildWeekPlan(all: Recipe[], t: { kcal: number; protein: number 
     cook,
     recipes,
     days: days.map((d) => ({ d: d.d, meals: d.meals.map(([m, r, n]) => [m, r.slug, n]) })),
-    shop: shop.map(({ home: _, ...x }) => x),
+    shop,
     tips: [
       perDay.protein < t.protein * 0.9 ? `Белка выходит ${perDay.protein} г из ${t.protein}: добавьте протеиновый коктейль или творог перекусом.`
         : perDay.protein > t.protein * 1.3 ? `Белка ${perDay.protein} г — с запасом к норме ${t.protein} г. Это безопасно; если тяжело съедать, уменьшите порцию мяса и добавьте гарнир.`

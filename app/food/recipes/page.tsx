@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
 import { AiError, localToday, mutate, num, recognizeFridge, useRecipes, type Meal, type Recipe } from "@/lib/data";
+import { excluded } from "@/lib/weekplan";
 import { MEALS, mealNow, shrinkImage } from "@/lib/nutrition";
 
 // База рецептов (просьба 13.10): поиск, фильтры и «что приготовить из того, что есть дома».
@@ -48,6 +49,14 @@ export default function Recipes() {
   const [have, setHave] = useState<string[]>([]);
   const [pick, setPick] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [noFish, setNoFish] = useState(true);
+  useEffect(() => {
+    try { setNoFish(localStorage.getItem("hl-nofish") !== "0"); } catch {}
+  }, []);
+  const toggleFish = () => {
+    setNoFish(!noFish);
+    try { localStorage.setItem("hl-nofish", noFish ? "0" : "1"); } catch {}
+  };
 
   useEffect(() => {
     try { setHave(JSON.parse(localStorage.getItem(STORE) ?? "[]")); } catch {}
@@ -61,7 +70,7 @@ export default function Recipes() {
     const s = q.trim().toLowerCase();
     const hs = new Set(have);
     return (rs.data ?? [])
-      .filter((r) => pass(r, f))
+      .filter((r) => pass(r, f) && !(noFish && excluded(r, "рыба")))
       .filter((r) => !s || r.name.toLowerCase().includes(s) || r.ingredients.some((i) => i.name.toLowerCase().includes(s) || i.key.includes(s)))
       .map((r) => {
         const need = needKeys(r);
@@ -69,7 +78,7 @@ export default function Recipes() {
         return { r, need, miss, score: need.length ? 1 - miss.length / need.length : 0 };
       })
       .sort((a, b) => (have.length ? b.score - a.score || a.miss.length - b.miss.length : 0) || Number(b.r.fav) - Number(a.r.fav));
-  }, [rs.data, q, f, have]);
+  }, [rs.data, q, f, have, noFish]);
 
   if (rs.error) return <ErrorCard error={rs.error} onRetry={rs.reload} />;
 
@@ -104,6 +113,7 @@ export default function Recipes() {
       <input className="field" type="search" placeholder="Поиск: блюдо или продукт" value={q} onChange={(e) => setQ(e.target.value)} />
       <div className="chips">
         {FILTERS.map((x) => <button key={x.key} className={"chip" + (f === x.key ? " on" : "")} onClick={() => setF(x.key)}>{x.label}</button>)}
+        <button className={"chip" + (noFish ? " on" : "")} onClick={toggleFish} aria-pressed={noFish}>Без рыбы</button>
       </div>
 
       {!rs.data ? <Loading n={4} /> : !list.length ? (

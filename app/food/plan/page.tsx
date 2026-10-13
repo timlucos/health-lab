@@ -23,7 +23,7 @@ export default function PlanPage() {
 
 const PREFS_KEY = "hl-mealplan-prefs";
 type Prefs = { cook: string; meals: string; dislikes: string };
-const DEFAULT: Prefs = { cook: "воскресенье и среда", meals: "4", dislikes: "" };
+const DEFAULT: Prefs = { cook: "воскресенье и среда", meals: "4", dislikes: "рыба" };
 const PREF_FIELDS: [keyof Prefs, string, string][] = [
   ["meals", "Приёмов пищи в день", "3, 4 или 5"],
   ["cook", "Когда готовить впрок", "воскресенье и среда"],
@@ -32,7 +32,10 @@ const PREF_FIELDS: [keyof Prefs, string, string][] = [
 
 function loadPrefs(): Prefs {
   try {
-    return { ...DEFAULT, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") };
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
+    // 13.10: рыбу он почти не ест — исключаем по умолчанию и в старых сохранённых настройках.
+    if (!saved.v2) saved.dislikes = [saved.dislikes, "рыба"].filter((x: string) => x?.trim()).join(", ");
+    return { ...DEFAULT, ...saved };
   } catch {
     return DEFAULT;
   }
@@ -111,7 +114,7 @@ function PlanForm({ t, today, onStarted }: { today: string; t: Targets | null; o
     setBusy(true);
     setErr("");
     try {
-      try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch {}
+      try { localStorage.setItem(PREFS_KEY, JSON.stringify({ ...p, v2: true })); } catch {}
       let have: string[] = [];
       try { have = JSON.parse(localStorage.getItem("hl-have") ?? "[]"); } catch {}
       const plan = buildWeekPlan(rs.data, t, { meals: Math.min(5, Math.max(3, Number(p.meals) || 4)), dislikes: p.dislikes, have, cook: p.cook });
@@ -202,7 +205,9 @@ function Week({ plan, today, t }: { plan: MealPlanBody; today: string; t: Target
               <div key={key} className="li">
                 <div>
                   <div className="muted small">{MEALS.find((m) => m.key === meal)?.label ?? meal}</div>
-                  <div className="n">{r.emoji ?? "🍽"} {r.name}{n !== 1 ? ` × ${num(n)}` : ""}</div>
+                  {/^r\d+$/.test(r.id)
+                    ? <div className="n">{r.emoji ?? "🍽"} {r.name}{n !== 1 ? ` × ${num(n)}` : ""}</div>
+                    : <Link className="n plan-dish" href={`/food/cook?r=${r.id}&n=${Math.max(1, Math.round(n))}`}>{r.emoji ?? "🍽"} {r.name}{n !== 1 ? ` × ${num(n)}` : ""} ›</Link>}
                   <div className="note">{Math.round(r.kcal * n)} ккал · Б {Math.round(r.protein * n)} · Ж {Math.round(r.fat * n)} · У {Math.round(r.carbs * n)}</div>
                 </div>
                 {isToday && (
@@ -219,7 +224,7 @@ function Week({ plan, today, t }: { plan: MealPlanBody; today: string; t: Target
       {err && <p className="note" style={{ color: "var(--bad)" }}>{err}</p>}
       <p className="note">
         За день: {Math.round(tot.kcal)} ккал, белок {Math.round(tot.protein)} г{t ? ` (норма ${t.kcal} и ${t.protein})` : ""}.
-        {isToday ? " «Съел» записывает блюдо в дневник питания." : ""}
+        {isToday ? " «Съел» записывает блюдо в дневник питания." : ""} Нажмите на блюдо — откроется готовка по шагам.
       </p>
     </Card>
   );
@@ -296,7 +301,7 @@ function Shop({ plan, id }: { plan: MealPlanBody; id: number }) {
           <div><div className="muted small">Всего примерно</div><div className="v" style={{ fontSize: 24, fontWeight: 700 }}>{num(total)} ₽</div></div>
           <div style={{ textAlign: "right" }}><div className="muted small">Осталось купить</div><div style={{ fontSize: 18, fontWeight: 600 }}>{num(left)} ₽</div></div>
         </div>
-        <p className="note">Цены — примерная оценка для Москвы, не из магазина. Точные цены и наличие смотрите в приложении «Пятёрочки» или на <a className="link" href="https://5ka.ru" target="_blank" rel="noreferrer">5ka.ru</a>.</p>
+        <p className="note">Сумма — целыми упаковками, как в чеке; запасы (масло, мёд, протеин) в неё не входят. Цены — примерная оценка для Москвы, не из магазина. Точные цены и наличие смотрите в приложении «Пятёрочки» или на <a className="link" href="https://5ka.ru" target="_blank" rel="noreferrer">5ka.ru</a>.</p>
       </Card>
       {[...groups].map(([g, items]) => (
         <Card key={g} title={g} color="move">
