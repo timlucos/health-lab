@@ -5,12 +5,13 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
 import {
-  AiError, localToday, num, startMealPlan, useGoal, useMealPlan, useProgress, useSummary,
+  localToday, mutate, num, useGoal, useMealPlan, useProgress, useRecipes, useSummary,
   type MealPlanBody, type MealPlanRow,
 } from "@/lib/data";
 import { rub } from "@/lib/ai";
 import { MEALS, targets, type Targets } from "@/lib/nutrition";
-import { WEEK, dayTotals, photoLink, planDay, recipeOf, useAte, weekdayKey } from "@/lib/mealplan";
+import { buildWeekPlan } from "@/lib/weekplan";
+import { WEEK, dayTotals, planDay, recipeOf, useAte, weekdayKey } from "@/lib/mealplan";
 
 export default function PlanPage() {
   return (
@@ -21,15 +22,12 @@ export default function PlanPage() {
 }
 
 const PREFS_KEY = "hl-mealplan-prefs";
-type Prefs = { store: string; budget: string; cook: string; meals: string; dislikes: string; notes: string };
-const DEFAULT: Prefs = { store: "Пятёрочка", budget: "", cook: "воскресенье и среда", meals: "4", dislikes: "", notes: "" };
+type Prefs = { cook: string; meals: string; dislikes: string };
+const DEFAULT: Prefs = { cook: "воскресенье и среда", meals: "4", dislikes: "" };
 const PREF_FIELDS: [keyof Prefs, string, string][] = [
-  ["store", "Магазин", "Пятёрочка"],
-  ["budget", "Бюджет на неделю, ₽", "например 4000"],
-  ["cook", "Когда готовить", "воскресенье и среда"],
-  ["meals", "Приёмов пищи в день", "4"],
+  ["meals", "Приёмов пищи в день", "3, 4 или 5"],
+  ["cook", "Когда готовить впрок", "воскресенье и среда"],
   ["dislikes", "Не ем / аллергия", "например рыба, грибы"],
-  ["notes", "Пожелания", "быстро, без духовки, контейнеры на работу"],
 ];
 
 function loadPrefs(): Prefs {
@@ -54,7 +52,7 @@ function Plan() {
   const row = st.data?.plan ?? null;
   const pending = row?.status === "pending" && Date.now() - Date.parse(row.created_at) < 5 * 60e3;
 
-  // Пока Claude составляет рацион, проверяем каждые 6 секунд.
+  // Старые рационы от ИИ могли составляться в фоне: пока такой в работе, проверяем каждые 6 секунд.
   useEffect(() => {
     if (!pending) return;
     const h = setInterval(() => st.reload(), 6000);
@@ -73,7 +71,7 @@ function Plan() {
         <>
           {pending && (
             <Card title="Составляю рацион" color="food">
-              <p className="note">Claude подбирает рецепты под вашу норму, считает КБЖУ, список покупок и цены. Обычно 1–2 минуты, экран можно не закрывать — он обновится сам.</p>
+              <p className="note">Составляется прошлый рацион от ИИ. Если ответ не придёт за 5 минут, просто соберите новый из базы рецептов.</p>
               <div className="skeleton" style={{ height: 8 }} />
             </Card>
           )}
@@ -101,22 +99,27 @@ function Plan() {
   );
 }
 
-function PlanForm({ today, t, onStarted }: { today: string; t: Targets | null; onStarted: () => void }) {
+function PlanForm({ t, today, onStarted }: { today: string; t: Targets | null; onStarted: () => void }) {
+  const rs = useRecipes();
   const [p, setP] = useState<Prefs>(DEFAULT);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   useEffect(() => setP(loadPrefs()), []);
 
   async function go() {
+    if (!t || !rs.data) return;
     setBusy(true);
     setErr("");
     try {
       try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch {}
-      const prefs = Object.fromEntries(Object.entries(p).filter(([, v]) => v.trim()));
-      await startMealPlan(today, prefs, t ? { kcal: t.kcal, protein: t.protein, fat: t.fat, carbs: t.carbs } : null);
+      let have: string[] = [];
+      try { have = JSON.parse(localStorage.getItem("hl-have") ?? "[]"); } catch {}
+      const plan = buildWeekPlan(rs.data, t, { meals: Math.min(5, Math.max(3, Number(p.meals) || 4)), dislikes: p.dislikes, have, cook: p.cook });
+      const pid = (await mutate("hl_meal_plan_start", { ws: today, prefs: p })) as number;
+      await mutate("hl_meal_plan_finish", { pid, plan, err: null, model: "база рецептов", cost_rub: null });
       onStarted();
     } catch (e) {
-      setErr(e instanceof AiError || e instanceof Error ? e.message : String(e));
+      setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -125,19 +128,21 @@ function PlanForm({ today, t, onStarted }: { today: string; t: Targets | null; o
   return (
     <Card title="Новый рацион" color="food">
       <p className="note">
-        Claude составит меню на 7 дней с готовкой впрок 2 раза в неделю: рецепты, порядок готовки, список покупок с примерными ценами.
-        {t ? ` Норма: ${t.kcal} ккал, белок ${t.protein} г, жиры ${t.fat} г, углеводы ${t.carbs} г.` : " Укажите вес в «Цели», чтобы попасть в вашу норму."}
+        Меню на 7 дней из проверенной базы рецептов: обед готовится впрок 2 раза в неделю, порции подогнаны под вашу норму, есть список покупок.
+        Продукты, отмеченные в «Рецептах» как «есть дома», идут в дело первыми. Бесплатно и сразу, без ИИ.
+        {t ? ` Норма: ${t.kcal} ккал, белок ${t.protein} г.` : ""}
       </p>
+      {!t && <p className="note" style={{ color: "var(--warn)" }}>Укажите вес в «Цели» или в «Прогрессе»: без него не посчитать норму.</p>}
       {PREF_FIELDS.map(([k, label, ph]) => (
         <label key={k} className="stack-label">
           <span>{label}</span>
-          <input className="field" value={p[k]} placeholder={ph} inputMode={k === "budget" || k === "meals" ? "numeric" : undefined}
+          <input className="field" value={p[k]} placeholder={ph} inputMode={k === "meals" ? "numeric" : undefined}
             onChange={(e) => setP((x) => ({ ...x, [k]: e.target.value }))} />
         </label>
       ))}
       {err && <p className="note" style={{ color: "var(--bad)" }}>{err}</p>}
-      <button className="btn" onClick={go} disabled={busy}>{busy ? "Отправляю…" : "Составить рацион"}</button>
-      <p className="note">Один рацион ≈ 15–25 ₽: это самый объёмный запрос, его делает Claude.</p>
+      {rs.error && <p className="note" style={{ color: "var(--bad)" }}>Не загрузилась база рецептов. Обновите страницу.</p>}
+      <button className="btn" onClick={go} disabled={busy || !t || !rs.data}>{busy ? "Собираю…" : "Составить рацион"}</button>
     </Card>
   );
 }
@@ -271,7 +276,7 @@ function Recipes({ plan }: { plan: MealPlanBody }) {
           <ul className="steps">{r.ingredients.map(([n, q], i) => <li key={i}>{n} — {q}</li>)}</ul>
           <div className="stack-label">Как готовить</div>
           <ol className="steps">{r.steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
-          <a className="link" href={photoLink(r.name)} target="_blank" rel="noreferrer">Фото готового блюда ›</a>
+          {!/^r\d+$/.test(r.id) && <Link className="btn" style={{ textAlign: "center" }} href={`/food/cook?r=${r.id}&n=${r.portions}`}>Готовить по шагам</Link>}
         </Card>
       ))}
     </>
@@ -291,7 +296,7 @@ function Shop({ plan, id }: { plan: MealPlanBody; id: number }) {
           <div><div className="muted small">Всего примерно</div><div className="v" style={{ fontSize: 24, fontWeight: 700 }}>{num(total)} ₽</div></div>
           <div style={{ textAlign: "right" }}><div className="muted small">Осталось купить</div><div style={{ fontSize: 18, fontWeight: 600 }}>{num(left)} ₽</div></div>
         </div>
-        <p className="note">Цены — оценка ИИ для Москвы, не из магазина. Точные цены и наличие смотрите в приложении «Пятёрочки» или на <a className="link" href="https://5ka.ru" target="_blank" rel="noreferrer">5ka.ru</a>.</p>
+        <p className="note">Цены — примерная оценка для Москвы, не из магазина. Точные цены и наличие смотрите в приложении «Пятёрочки» или на <a className="link" href="https://5ka.ru" target="_blank" rel="noreferrer">5ka.ru</a>.</p>
       </Card>
       {[...groups].map(([g, items]) => (
         <Card key={g} title={g} color="move">

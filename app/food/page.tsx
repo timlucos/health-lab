@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { AiCard } from "@/components/AiCard";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { DrinksCard } from "@/components/DrinksCard";
+import { PresetsCard } from "@/components/PresetsCard";
 import { ActivityRings } from "@/components/charts";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
 import {
@@ -92,6 +93,8 @@ export default function FoodPage() {
       </Card>
 
       <PlanToday today={today} onLogged={day.reload} />
+
+      <PresetsCard day={today} onLogged={day.reload} />
 
       <div className="food-links">
         <Card title="Рецепты" color="move" href="/food/recipes"><div className="note">Что приготовить из того, что есть дома</div></Card>
@@ -324,7 +327,7 @@ function PlanToday({ today, onLogged }: { today: string; onLogged: () => void })
   if (!plan || !d) {
     return (
       <Card title="Рацион на неделю" color="food" href="/food/plan">
-        <div className="note">{row?.status === "pending" && Date.now() - Date.parse(row.created_at) < 6 * 60e3 ? "Claude составляет рацион…" : "Меню на 7 дней с готовкой впрок: рецепты, список покупок и цены в «Пятёрочке»."}</div>
+        <div className="note">Меню на 7 дней из базы рецептов под вашу норму: готовка впрок, рецепты по шагам и список покупок. Собирается сразу и бесплатно.</div>
       </Card>
     );
   }

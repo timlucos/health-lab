@@ -188,8 +188,9 @@ function RecipeCard({ r, open, onToggle, have, need, miss, onChange }: { r: Reci
           <div className="chips">
             {MEALS.map((m) => <button key={m.key} className={"chip" + (meal === m.key ? " on" : "")} onClick={() => setMeal(m.key)}>{m.label}</button>)}
           </div>
+          <Link className="btn" style={{ textAlign: "center" }} href={`/food/cook?r=${r.slug}`}>Готовить по шагам</Link>
           <div className="row2">
-            <button className="btn" onClick={eat} disabled={busy}>{busy ? "Записываю…" : "Съел порцию"}</button>
+            <button className="btn ghost" onClick={eat} disabled={busy}>{busy ? "Записываю…" : "Съел порцию"}</button>
             <button className="btn ghost" onClick={star} aria-pressed={fav}>{fav ? "★ В избранном" : "☆ В избранное"}</button>
           </div>
           {done && <p className="note" style={{ color: done.startsWith("Не") ? "var(--bad)" : "var(--ok)" }}>{done}</p>}

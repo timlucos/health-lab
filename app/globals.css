@@ -314,3 +314,31 @@ textarea.field { resize: vertical; min-height: 80px; line-height: 1.4; }
 .drink-grid .chip small { font-weight: 400; color: var(--muted); font-size: 11px; }
 .food-links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .row2 .btn.ghost { background: color-mix(in srgb, var(--air) 10%, transparent); }
+
+/* Режим готовки (13.10) */
+.stepper { display: flex; align-items: center; gap: 12px; }
+.stepper b { font-size: 20px; min-width: 24px; text-align: center; font-variant-numeric: tabular-nums; }
+.stepper .chip { width: 40px; height: 36px; font-size: 18px; padding: 0; }
+.ingr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ingr-tile { display: grid; justify-items: center; gap: 2px; padding: 10px 4px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); font: inherit; text-align: center; cursor: pointer; }
+.ingr-tile.on { background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.ingr-tile.on .ingr-name { text-decoration: line-through; opacity: .6; }
+.ingr-emoji { font-size: 30px; line-height: 1.1; }
+.ingr-name { font-size: 13px; font-weight: 600; line-height: 1.2; }
+.cook-progress { display: flex; gap: 4px; }
+.cook-progress i { flex: 1; height: 4px; border-radius: 2px; background: var(--track); }
+.cook-progress i.on { background: var(--temp); }
+.cook-step { min-height: 46vh; align-content: start; }
+.cook-art { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; padding: 18px 8px; border-radius: 16px; background: color-mix(in srgb, var(--temp) 10%, transparent); }
+.cook-foods { font-size: 40px; letter-spacing: 2px; }
+.cook-arrow { font-size: 26px; color: var(--muted); }
+.cook-act { display: grid; justify-items: center; }
+.cook-act span { font-size: 46px; line-height: 1.1; }
+.cook-act small { font-size: 12px; color: var(--muted); font-weight: 600; }
+.cook-text { font-size: 22px; line-height: 1.4; margin: 0; }
+.cook-timer { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.preset-name { display: grid; gap: 2px; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.preset-form { display: grid; gap: 8px; }
+.preset-nums { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.preset-nums .field { padding: 10px 6px; text-align: center; }
+.preset-nums .stack-label span { font-size: 11px; }
