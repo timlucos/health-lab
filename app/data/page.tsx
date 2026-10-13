@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Trend } from "@/components/charts";
@@ -49,7 +50,9 @@ function Data() {
 
   return (
     <>
-      <Header eyebrow="все показатели" title="Данные" />
+      <Header eyebrow="все показатели" title="Данные">
+        <Link href="/report" className="link small">Отчёт для врача ›</Link>
+      </Header>
       <SpanSeg value={span} onChange={setSpan} />
       <Seg value={view} options={[{ key: "charts", label: "Графики" }, { key: "table", label: "Таблица" }] as const} onChange={setView} label="Вид" />
       {!data ? (

@@ -272,3 +272,18 @@ textarea.field { resize: vertical; min-height: 80px; line-height: 1.4; }
 .field.push-time { width: 104px; padding: 8px 10px; font-size: 16px; text-align: center; }
 .field.push-time:disabled { opacity: .45; }
 .set-check.fail { background: color-mix(in srgb, var(--ring1) 20%, var(--card)); color: var(--ring1); }
+
+/* Отчёт для врача */
+.report-flags { margin: 8px 0; padding-left: 18px; display: grid; gap: 4px; color: var(--bad); }
+.report-table { display: grid; font-size: 13px; }
+.rt-h, .rt-r { display: grid; grid-template-columns: 1.6fr .8fr .9fr 1fr 1.4fr; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--hair); align-items: start; }
+.rt-4 { grid-template-columns: 1.4fr 1fr 1fr 1fr; }
+.rt-h { color: var(--muted); font-weight: 600; font-size: 12px; }
+.rt-r small { display: block; color: var(--muted); font-size: 11px; }
+.rt-r.bad span:nth-child(2) { color: var(--bad); font-weight: 700; }
+@media print {
+  :root { --page: #fff; --card: #fff; --ink: #000; --muted: #555; --hair: #ccc; }
+  body { background: #fff !important; color: #000; }
+  .tabs, .no-print { display: none !important; }
+  .card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+}
