@@ -89,8 +89,8 @@ function Login() {
       const { error } = await supabase.auth.signInWithPassword({ email: addr, password });
       if (error) setMsg(/invalid/i.test(error.message) ? "Почта или пароль не подошли. Если пароля ещё нет, войдите по ссылке и задайте его." : error.message);
     } else {
-      const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { emailRedirectTo: window.location.origin } });
-      if (error) setMsg(/rate|seconds/i.test(error.message) ? "Письмо уже отправлено. Новое можно запросить через минуту." : error.message);
+      const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { emailRedirectTo: window.location.origin, shouldCreateUser: false } });
+      if (error) setMsg(/rate|seconds/i.test(error.message) ? "Письмо уже отправлено. Новое можно запросить через минуту." : /signup|not allowed|not found/i.test(error.message) ? "Вход только для владельца." : error.message);
       else setMode("sent");
     }
     setBusy(false);
