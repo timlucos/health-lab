@@ -291,3 +291,26 @@ textarea.field { resize: vertical; min-height: 80px; line-height: 1.4; }
 .battery { width: 120px; height: 22px; border: 2px solid var(--hair); border-radius: 6px; padding: 2px; position: relative; }
 .battery::after { content: ""; position: absolute; right: -6px; top: 6px; width: 3px; height: 6px; border-radius: 0 2px 2px 0; background: var(--hair); }
 .battery i { display: block; height: 100%; border-radius: 3px; }
+
+/* Вкладка «Еда»: рецепты, вода и напитки (13.10) */
+.card .chip:not(.on) { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.chips.wrap { flex-wrap: wrap; overflow: visible; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row2 .btn { padding: 12px 8px; font-size: 15px; }
+.recipes { display: grid; gap: 10px; }
+.recipe-head { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; width: 100%; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.recipe-head > span:nth-child(2) { display: grid; gap: 2px; }
+.recipe-emoji { font-size: 30px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--food) 16%, transparent); }
+.recipe-have { font-size: 13px; font-weight: 600; }
+.macro-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
+.macro-row div { padding: 8px 4px; border-radius: 12px; background: color-mix(in srgb, var(--ink) 5%, transparent); display: grid; }
+.macro-row b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.macro-row small { font-size: 11px; color: var(--muted); }
+.li.ingr { padding: 7px 0; font-size: 15px; }
+.water-bar { height: 10px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.water-bar i { display: block; height: 100%; border-radius: 999px; background: var(--air); transition: width .3s; }
+.drink-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.drink-grid .chip { display: grid; gap: 1px; padding: 9px 4px; text-align: center; white-space: normal; }
+.drink-grid .chip small { font-weight: 400; color: var(--muted); font-size: 11px; }
+.food-links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row2 .btn.ghost { background: color-mix(in srgb, var(--air) 10%, transparent); }

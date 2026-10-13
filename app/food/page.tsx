@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { AiCard } from "@/components/AiCard";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { DrinksCard } from "@/components/DrinksCard";
 import { ActivityRings } from "@/components/charts";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
 import {
@@ -90,6 +92,11 @@ export default function FoodPage() {
       </Card>
 
       <PlanToday today={today} onLogged={day.reload} />
+
+      <div className="food-links">
+        <Card title="Рецепты" color="move" href="/food/recipes"><div className="note">Что приготовить из того, что есть дома</div></Card>
+        <Card title="Рацион" color="food" href="/food/plan"><div className="note">Меню на неделю и покупки</div></Card>
+      </div>
 
       <div className="food-add">
         {([["photo", "📷 Фото"], ["barcode", "▥ Штрихкод"], ["text", "✎ Текстом"], ["recent", "↺ Недавнее"]] as const).map(([k, l]) => (
@@ -179,6 +186,15 @@ export default function FoodPage() {
           </p>
         </Card>
       )}
+      <DrinksCard day={today} weight={weight ?? goal.data?.details?.start_weight_kg ?? null} />
+
+      {(day.data?.week.length ?? 0) < 3 ? (
+        <Card title="Разбор питания" color="food">
+          <p className="note">Записывайте еду и напитки хотя бы 3 дня: тогда ИИ разберёт, что вы обычно едите и пьёте, хватает ли белка и воды, и предложит простые замены.</p>
+        </Card>
+      ) : <AiCard kind="nutrition" day={today} title="Разбор питания" color="food" cta="Разобрать, как я ем и пью"
+        hint="ИИ посмотрит дневник еды и напитков за 2 недели: что вы обычно едите, когда, хватает ли белка и воды, и предложит простые замены. DeepSeek, ≈ 1 ₽." />}
+
       <p className="note" style={{ textAlign: "center" }}>Штрихкоды: своя база и Open Food Facts (ODbL). Фото и текст распознаёт ИИ, одно распознавание ≈ 1–3 ₽.</p>
     </>
   );

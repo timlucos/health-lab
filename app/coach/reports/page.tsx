@@ -16,7 +16,7 @@ export default function ReportsPage() {
   );
 }
 
-const FILTERS: [string, string][] = [["", "Все"], ["health", "Здоровье"], ["weekly", "Неделя"], ["workout", "Тренировки"], ["daily", "День"], ["chat", "Вопросы"], ["mealplan", "Рацион"], ["food", "Еда"]];
+const FILTERS: [string, string][] = [["", "Все"], ["health", "Здоровье"], ["weekly", "Неделя"], ["workout", "Тренировки"], ["daily", "День"], ["chat", "Вопросы"], ["mealplan", "Рацион"], ["nutrition", "Питание"], ["food", "Еда"]];
 
 const when = (iso: string) =>
   new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
@@ -85,7 +85,8 @@ function Reports() {
 
 function FoodAnswer({ text }: { text: string }) {
   try {
-    const j = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "") as { items?: { name: string; grams: number; kcal_100: number }[]; name?: string; kcal?: number; note?: string };
+    const j = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? "") as { items?: { name: string; grams: number; kcal_100: number }[]; products?: { name: string }[]; name?: string; kcal?: number; note?: string };
+    if (j.products) return <p className="note">{j.products.map((x) => x.name).join(", ")}{j.note ? `. ${j.note}` : ""}</p>;
     if (j.items) return <p className="note">{j.items.map((x) => `${x.name} ${Math.round(x.grams)} г ≈ ${Math.round((x.kcal_100 * x.grams) / 100)} ккал`).join(" · ")}{j.note ? `. ${j.note}` : ""}</p>;
     if (j.name) return <p className="note">{j.name}: {j.kcal} ккал на 100 г</p>;
   } catch {}

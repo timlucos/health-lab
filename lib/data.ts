@@ -254,7 +254,7 @@ export const useExerciseHistory = (id: string | null, lim = 12) => useRpc<ExHist
 export type Review = { day: string; plan_id: number | null; energy: number | null; fatigue: number | null; sleep_quality: number | null; soreness: number | null; mood: number | null;
   progress_feel: "better" | "same" | "worse" | null; pain: string | null; note: string | null };
 export type Checkin = { day: string; weight_kg: number | null; waist_cm: number | null; chest_cm: number | null; arm_cm: number | null; hip_cm: number | null; thigh_cm: number | null; body_fat_pct: number | null; note: string | null };
-export type AiReport = { id: number; kind: "workout" | "weekly" | "chat" | "daily" | "health" | "food" | "mealplan"; day: string; model: string | null; question: string | null; answer: string; created_at: string; cost_rub?: number | null; tokens_in?: number | null; tokens_out?: number | null };
+export type AiReport = { id: number; kind: "workout" | "weekly" | "chat" | "daily" | "health" | "food" | "mealplan" | "nutrition"; day: string; model: string | null; question: string | null; answer: string; created_at: string; cost_rub?: number | null; tokens_in?: number | null; tokens_out?: number | null };
 export type Progress = {
   checkins: Checkin[];
   reviews: Review[];
@@ -303,7 +303,7 @@ async function invokeAi<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 /** Запрос к ИИ-тренеру (Edge Function coach-ai). Ключ ИИ хранится только на сервере. */
-export async function askCoach(body: { kind: "workout" | "weekly" | "chat" | "daily" | "health"; day: string; question?: string; history?: { role: string; content: string }[] }): Promise<string> {
+export async function askCoach(body: { kind: "workout" | "weekly" | "chat" | "daily" | "health" | "nutrition"; day: string; question?: string; history?: { role: string; content: string }[] }): Promise<string> {
   return (await invokeAi<{ answer: string }>(body)).answer;
 }
 
@@ -327,6 +327,22 @@ export const recognizeFood = (day: string, text: string, image?: string) =>
 export const recognizeLabel = (day: string, image: string) =>
   invokeAi<{ result: { name?: string; brand?: string; kcal?: number; protein?: number; fat?: number; carbs?: number; portion_g?: number | null }; cost_rub: number | null }>({ kind: "label", day, image });
 export const lookupBarcode = (code: string) => invokeAi<{ product: Product | null; from: "own" | "off" | "none" }>({ kind: "barcode", code });
+// ---------- рецепты и напитки ----------
+
+export type Ingredient = { name: string; qty: string; g: number; key: string };
+export type Recipe = {
+  slug: string; name: string; emoji: string | null; meals: Meal[]; time_min: number | null; servings: number; portion_g: number | null;
+  kcal: number; protein: number; fat: number; carbs: number; ingredients: Ingredient[]; steps: string[]; tags: string[]; tip: string | null; fav: boolean; cooked: number;
+};
+export const useRecipes = () => useRpc<Recipe[]>("hl_recipes", {});
+export const recognizeFridge = (day: string, text: string, image?: string) =>
+  invokeAi<{ result: { products?: { key: string; name: string }[]; note?: string }; cost_rub: number | null }>({ kind: "fridge", day, text, image });
+
+export type DrinkKind = "water" | "coffee" | "tea" | "protein" | "juice" | "soda" | "milk" | "alcohol" | "other";
+export type Drink = { id: number; day: string; kind: DrinkKind; ml: number; kcal: number; at: string };
+export type Drinks = { list: Drink[]; week: { day: string; water_ml: number | null; total_ml: number; coffee: number; kcal: number | null }[] };
+export const useDrinks = (d: string | null) => useRpc<Drinks>("hl_drinks", d ? { d } : null);
+
 export const useAiSpend = () => useRpc<{ month_rub: number; month_n: number; avg_rub: number | null }>("hl_ai_spend", {});
 
 // ---------- недельный рацион ----------

@@ -8,11 +8,11 @@ import { AiError, askCoach, useAiReports } from "@/lib/data";
 import { modelName, rub } from "@/lib/ai";
 
 /** Разбор от ИИ-тренера: последний сохранённый ответ и кнопка «разобрать заново». */
-export function AiCard({ kind, day, title, cta, hint, color = "load" }: { hint?: string; color?: string; kind: "workout" | "weekly" | "daily" | "health"; day: string; title: string; cta: string }) {
+export function AiCard({ kind, day, title, cta, hint, color = "load" }: { hint?: string; color?: string; kind: "workout" | "weekly" | "daily" | "health" | "nutrition"; day: string; title: string; cta: string }) {
   const reports = useAiReports(kind, 20);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<AiError | null>(null);
-  const last = reports.data?.filter((r) => (kind === "weekly" || kind === "health" ? true : r.day === day)).at(-1);
+  const last = reports.data?.filter((r) => (kind === "weekly" || kind === "health" || kind === "nutrition" ? true : r.day === day)).at(-1);
 
   async function run() {
     setBusy(true);

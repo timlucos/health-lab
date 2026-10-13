@@ -9,6 +9,7 @@ export const KIND: Record<AiReport["kind"], { label: string; color: string }> = 
   chat: { label: "Вопрос тренеру", color: "air" },
   food: { label: "Распознавание еды", color: "food" },
   mealplan: { label: "Рацион на неделю", color: "food" },
+  nutrition: { label: "Разбор питания", color: "food" },
 };
 export const modelName = (m: string | null | undefined) => (!m ? "" : /claude/i.test(m) ? "Claude" : /deepseek/i.test(m) ? "DeepSeek" : /gpt/i.test(m) ? "GPT" : /gemini/i.test(m) ? "Gemini" : m);
 export const rub = (v: number | null | undefined) => (v == null ? "" : `${num(v, v < 10 ? 2 : 1)} ₽`);

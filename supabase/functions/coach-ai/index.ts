@@ -140,6 +140,8 @@ Deno.serve(async (req) => {
   if (body.kind === "barcode") return barcode(auth, String(body.code ?? ""));
   if (body.kind === "food" || body.kind === "label") return food(auth, body.kind, day, body.text, body.image);
   if (body.kind === "mealplan") return mealplan(auth, day, body as Record<string, unknown>);
+  if (body.kind === "fridge") return fridge(auth, day, body.text, body.image);
+  if (body.kind === "nutrition") return nutrition(auth, day);
   const kind = ["weekly", "chat", "daily", "health"].includes(body.kind ?? "") ? body.kind! : "workout";
 
   try {
@@ -284,6 +286,63 @@ async function food(auth: string, kind: "food" | "label", day: string, text?: st
     await rpc(auth, "hl_ai_log", { kind: "food", d: day, model: a.model, question: kind === "label" ? "этикетка" : hint || "фото", answer: raw.slice(0, 4000), tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub }).catch(() => {});
     if (!parsed) return json({ error: "ai_empty" }, 502);
     return json({ result: parsed, cost_rub: rub });
+  } catch (e) {
+    return err(e);
+  }
+}
+
+// Слова-ключи продуктов совпадают с ключами ингредиентов в базе рецептов (health.recipes) — по ним подбираются блюда.
+const PRODUCT_KEYS = "яйца, творог, курица, индейка, говядина, свинина, фарш, рыба, тунец, лосось, минтай, креветки, кефир, йогурт, молоко, сыр, моцарелла, сметана, гречка, рис, овсянка, макароны, булгур, картофель, хлеб, лаваш, фасоль, нут, чечевица, горох, помидоры, огурцы, перец, лук, морковь, капуста, брокколи, кабачок, грибы, шпинат, зелень, чеснок, банан, яблоко, ягоды, орехи, арахисовая паста, мёд, протеин, масло, авокадо";
+
+const FRIDGE_SYSTEM = `Это фото холодильника, полки или продуктов на столе. Перечисли продукты, которые видно (и которые указаны в подсказке).
+Для каждого дай key — одно слово из списка: ${PRODUCT_KEYS}. Если продукт не подходит ни к одному — key "другое". Не выдумывай то, чего не видно.
+Ответ — только JSON: {"products":[{"key":"яйца","name":"Яйца, около 6 шт"}],"note":"одно предложение: что из этого лучше съесть первым или чего не хватает для белка"}`;
+
+/** Фото холодильника → список продуктов; рецепты из базы подбирает приложение, без лишних токенов. */
+async function fridge(auth: string, day: string, text?: string, image?: string) {
+  try {
+    await rpc(auth, "hl_goal", {}); // проверка владельца до траты токенов
+    if (!KEY) return json({ error: "no_key" }, 503);
+    const img = image && /^data:image\/(jpeg|png|webp);base64,/.test(image) && image.length < 2_800_000 ? image : null;
+    const hint = String(text ?? "").slice(0, 500);
+    if (!img && !hint) return json({ error: "empty" }, 400);
+    const content: unknown[] = [{ type: "text", text: `Какие продукты есть? ${hint ? "Подсказка: " + hint : ""}` }];
+    if (img) content.push({ type: "image_url", image_url: { url: img } });
+    const a = await complete(img ? [MODEL] : [LIGHT, MODEL], { max_tokens: 1500, temperature: 0.1, messages: [{ role: "system", content: FRIDGE_SYSTEM }, { role: "user", content: img ? content : (content[0] as { text: string }).text }] });
+    if (!a.ok) {
+      await logFailed(auth, "food", day, a);
+      return json({ error: "ai_failed", status: a.status, detail: why(a) }, 502);
+    }
+    const parsed = parseJson(a.text);
+    const { tin, tout, rub } = usage(a);
+    await rpc(auth, "hl_ai_log", { kind: "food", d: day, model: a.model, question: "что в холодильнике", answer: a.text.slice(0, 4000), tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub }).catch(() => {});
+    if (!parsed) return json({ error: "ai_empty" }, 502);
+    return json({ result: parsed, cost_rub: rub });
+  } catch (e) {
+    return err(e);
+  }
+}
+
+const NUTRITION_SYSTEM = `Ты спортивный диетолог. Пиши по-русски, на «вы», коротко, без англицизмов. Клиент набирает мышечную массу (профицит 200–300 ккал, белок 1,6–2,2 г/кг), тренируется в зале, принимает креатин.
+Разбери его привычки питания и питья по данным дневника: что он обычно ест и пьёт, во сколько, сколько белка и калорий в среднем против нормы, какие приёмы пищи провисают, сколько воды (норма ~30–35 мл на кг веса, с креатином — не меньше), кофе (до 400 мг кофеина ≈ 3–4 чашки), сладкие напитки и алкоголь.
+Опирайся на данные, называй конкретные продукты из его списка. Дай 3–5 простых замен или добавок из обычного магазина («вместо X — Y», «добавьте Z на перекус»). Если дней в дневнике меньше 4 — скажи, что выводы предварительные.
+Формат: Markdown, разделы «Как вы едите», «Что хорошо», «Что поправить», «Напитки». До 230 слов. Цифры только из данных.`;
+
+/** Разбор привычек питания и напитков за 2 недели (дешёвая модель). */
+async function nutrition(auth: string, day: string) {
+  try {
+    const [habits, goal, progress] = await Promise.all([rpc(auth, "hl_food_habits", { days: 14 }), rpc(auth, "hl_goal", {}), rpc(auth, "hl_progress", { weeks: 4 })]);
+    if (!KEY) return json({ error: "no_key" }, 503);
+    const weight = (progress?.checkins ?? []).filter((c: { weight_kg: number | null }) => c.weight_kg != null).at(-1)?.weight_kg ?? goal?.details?.start_weight_kg ?? null;
+    const data = { weight_kg: weight, goal: goal ? { title: goal.title, ...goal.details } : null, ...habits };
+    const a = await complete([LIGHT, MODEL], { max_tokens: 2500, temperature: 0.4, messages: [{ role: "system", content: NUTRITION_SYSTEM }, { role: "user", content: `Разбери мои привычки питания за 2 недели.\n\nДанные (JSON):\n${compact(data)}` }] });
+    if (!a.ok) {
+      await logFailed(auth, "nutrition", day, a);
+      return json({ error: "ai_failed", status: a.status, detail: why(a) }, 502);
+    }
+    const { tin, tout, rub } = usage(a);
+    await rpc(auth, "hl_ai_log", { kind: "nutrition", d: day, model: a.model, question: null, answer: a.text, tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub }).catch(() => {});
+    return json({ answer: a.text, model: a.model, cost_rub: rub });
   } catch (e) {
     return err(e);
   }
