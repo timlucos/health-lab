@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Md } from "@/components/Md";
 import { Card, ErrorCard, Header, Loading } from "@/components/ui";
-import { useAiReports, useAiSpend } from "@/lib/data";
+import { getAiBalance, useAiReports, useAiSpend } from "@/lib/data";
 import { KIND, modelName, rub } from "@/lib/ai";
 
 export default function ReportsPage() {
@@ -28,6 +28,10 @@ function Reports() {
   const list = useAiReports(k || null, 100);
   const spend = useAiSpend();
   const [open, setOpen] = useState<number | null>(null);
+  const [bal, setBal] = useState<{ rub: number | null; miss: string | null } | null>(null);
+  useEffect(() => {
+    getAiBalance().then((b) => setBal({ rub: b.balance_rub, miss: b.balance_miss })).catch(() => setBal({ rub: null, miss: "не удалось спросить сервис ИИ" }));
+  }, []);
 
   if (list.error) return <ErrorCard error={list.error} onRetry={list.reload} />;
   const rows = [...(list.data ?? [])].reverse();
@@ -41,10 +45,14 @@ function Reports() {
       {spend.data && (
         <Card>
           <div className="stats">
+            <div><div className="k">На счёте</div><div className="v" style={bal?.rub != null && bal.rub < 100 ? { color: "var(--bad)" } : undefined}>{bal == null ? "…" : bal.rub != null ? rub(bal.rub) || "0 ₽" : "—"}</div></div>
+            <div><div className="k">За неделю</div><div className="v">{rub(spend.data.week_rub ?? 0) || "0 ₽"}</div></div>
             <div><div className="k">В этом месяце</div><div className="v">{rub(spend.data.month_rub) || "0 ₽"}</div></div>
-            <div><div className="k">Запросов</div><div className="v">{spend.data.month_n}</div></div>
-            <div><div className="k">В среднем</div><div className="v">{rub(spend.data.avg_rub) || "—"}</div></div>
           </div>
+          <p className="note">
+            Сегодня {rub(spend.data.today_rub ?? 0) || "0 ₽"} · запросов в месяце {spend.data.month_n} · в среднем {rub(spend.data.avg_rub) || "—"} · всего {rub(spend.data.total_rub ?? 0) || "0 ₽"}.
+            {bal?.miss ? ` Остаток не показан: ${bal.miss}.` : bal?.rub != null && bal.rub < 100 ? " Пора пополнить счёт." : ""}
+          </p>
           <p className="note">Совет на день, вопросы и разбор тренировки делает DeepSeek (≈0,3–1 ₽). Недельный разбор, здоровье и рацион — Claude (≈3–25 ₽).</p>
         </Card>
       )}

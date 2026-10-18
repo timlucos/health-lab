@@ -343,7 +343,10 @@ export type Drink = { id: number; day: string; kind: DrinkKind; ml: number; kcal
 export type Drinks = { list: Drink[]; week: { day: string; water_ml: number | null; total_ml: number; coffee: number; kcal: number | null }[] };
 export const useDrinks = (d: string | null) => useRpc<Drinks>("hl_drinks", d ? { d } : null);
 
-export const useAiSpend = () => useRpc<{ month_rub: number; month_n: number; avg_rub: number | null }>("hl_ai_spend", {});
+export type AiSpend = { today_rub?: number; week_rub?: number; week_n?: number; month_rub: number; month_n: number; total_rub?: number; avg_rub: number | null };
+export const useAiSpend = () => useRpc<AiSpend>("hl_ai_spend", {});
+/** Остаток на счёте ИИ-сервиса: спрашивает сервер, ключ в браузер не попадает. */
+export const getAiBalance = () => invokeAi<AiSpend & { balance_rub: number | null; balance_miss: string | null }>({ kind: "balance" });
 
 // ---------- недельный рацион ----------
 

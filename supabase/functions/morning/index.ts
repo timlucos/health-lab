@@ -54,6 +54,19 @@ async function send(title: string, body: string, url = "/") {
   return sent;
 }
 
+/** Расход на ИИ и остаток на счёте (через coach-ai: ключ ИИ живёт только там). */
+type Money = { week_rub?: number; month_rub?: number; balance_rub?: number | null; balance_miss?: string | null };
+async function money(): Promise<Money | null> {
+  try {
+    const r = await fetch(`${URL_}/functions/v1/coach-ai`, { method: "POST", headers: { ...svcHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ kind: "balance" }) });
+    return r.ok ? await r.json() : null;
+  } catch {
+    return null;
+  }
+}
+const rubs = (v: number) => `${(Math.round(v * 10) / 10).toLocaleString("ru-RU")} ₽`;
+const LOW_BALANCE = 100;
+
 /** Совет на день (DeepSeek через coach-ai) и пуш с готовностью и сном. */
 async function morning() {
   const day = moscowDay();
@@ -79,7 +92,9 @@ async function morning() {
   const title = head ? `Доброе утро: ${head}` : "Доброе утро";
   const dev = (await rpc(svc, "hl_devices", {}).catch(() => null))?.list?.[0];
   const low = dev?.battery != null && dev.battery <= 30 ? `Заряд часов ${dev.battery}%, поставьте на зарядку. ` : "";
-  const text = low + plain;
+  const m = await money();
+  const poor = m?.balance_rub != null && m.balance_rub < LOW_BALANCE ? `На счёте ИИ ${rubs(m.balance_rub)}, пора пополнить. ` : "";
+  const text = low + poor + plain;
   const body = text ? (text.length > 220 ? text.slice(0, 217) + "…" : text) : "Откройте «Сегодня»: план и совет на день.";
   return { sent: await send(title, body, "/"), advice: !!plain, ai };
 }
@@ -123,8 +138,11 @@ async function weekly() {
   });
   const j = await r.json().catch(() => null);
   const plain = String(j?.answer ?? "").replace(/[#*_`>]/g, "").replace(/^\s*[-•]\s*/gm, "").replace(/\n+/g, " ").trim();
-  const body = r.ok && plain ? (plain.length > 200 ? plain.slice(0, 197) + "…" : plain) : "Разбор не получился, подробности в «Разборах».";
-  return { sent: await send("Итоги недели", body, "/coach/reports?k=weekly"), ok: r.ok };
+  const m = await money();
+  const cash = m ? `ИИ за неделю: ${rubs(m.week_rub ?? 0)}${m.balance_rub != null ? `, на счёте ${rubs(m.balance_rub)}` : ""}. ` : "";
+  const main = r.ok && plain ? plain : "Разбор не получился, подробности в «Разборах».";
+  const body = (cash + main).length > 230 ? (cash + main).slice(0, 227) + "…" : cash + main;
+  return { sent: await send("Итоги недели", body, "/coach/reports?k=weekly"), ok: r.ok, money: m };
 }
 
 Deno.serve(async (req) => {
@@ -135,6 +153,7 @@ Deno.serve(async (req) => {
     const key = req.headers.get("x-health-key");
     if (key) {
       if (!(await rpc(svc, "hl_admin_ok", { k: key }))) return json({ error: "forbidden" }, 403);
+      if (body.kind === "money") return json(await money()); // проверка без отправки
       return json(body.kind === "evening" ? await evening() : body.kind === "weekly" ? await weekly() : body.kind === "battery" ? await battery() : await morning());
     }
     const auth = req.headers.get("Authorization") ?? "";

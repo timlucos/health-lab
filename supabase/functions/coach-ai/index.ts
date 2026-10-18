@@ -79,6 +79,27 @@ async function logFailed(auth: string, kind: string, day: string, a: AiOut) {
   await rpc(auth, "hl_ai_log", { kind, d: day, model: a.model, question: null, answer: `**Ответ не получен:** ${why(a)}. Списано ${rub ?? "?"} ₽ — попробуйте ещё раз.`, tokens_in: tin || null, tokens_out: tout || null, cost_rub: rub }).catch(() => {});
 }
 
+/** Остаток на счёте ИИ-сервиса (ProxyAPI) и расход по журналу. Ключ не покидает сервер, наружу уходит только сумма. */
+async function balance(auth: string) {
+  const spend = await rpc(auth, "hl_ai_spend", {}); // заодно проверка владельца
+  let rub: number | null = null;
+  let miss: string | null = null;
+  try {
+    const u = new URL(BASE);
+    if (!/(^|\.)proxyapi\.ru$/.test(u.hostname)) miss = "сервис ИИ не сообщает остаток";
+    else {
+      const r = await fetch(`${u.origin}/proxyapi/balance`, { headers: { Authorization: `Bearer ${KEY}` } });
+      const j = await r.json().catch(() => null);
+      const v = Number(j?.balance);
+      if (r.ok && Number.isFinite(v)) rub = Math.round(v * 100) / 100;
+      else miss = r.status === 401 || r.status === 403 ? "ключу не разрешено смотреть баланс" : `сервис ответил кодом ${r.status}`;
+    }
+  } catch {
+    miss = "нет связи с сервисом ИИ";
+  }
+  return json({ ...spend, balance_rub: rub, balance_miss: miss });
+}
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
@@ -137,6 +158,7 @@ Deno.serve(async (req) => {
     return json({ error: "bad_json" }, 400);
   }
   const day = /^\d{4}-\d{2}-\d{2}$/.test(body.day ?? "") ? body.day! : new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+  if (body.kind === "balance") return balance(auth).catch((e) => json({ error: /42501|forbidden/.test(String(e)) ? "forbidden" : "server" }, /42501|forbidden/.test(String(e)) ? 403 : 500));
   if (body.kind === "barcode") return barcode(auth, String(body.code ?? ""));
   if (body.kind === "food" || body.kind === "label") return food(auth, body.kind, day, body.text, body.image);
   if (body.kind === "mealplan") return mealplan(auth, day, body as Record<string, unknown>);
